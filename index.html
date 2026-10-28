@@ -16,5 +16,40 @@ setTimeout(function(){var n=document.getElementById('boot-note');if(n){n.innerHT
 </script>
 <script>document.body.classList.add('text-neutral-100','overflow-hidden','select-none');</script>
 <script type="module" src="assets/index-DaJZObjd.js"></script>
+<button id="music-toggle" type="button" aria-label="Mute music" aria-pressed="false" title="Mute music">
+  <svg class="on" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+  <svg class="off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+</button>
+<style>
+  /* Music-only mute: fixed in the top-right corner on every screen */
+  #music-toggle{position:fixed;top:calc(16px + env(safe-area-inset-top,0px));right:16px;z-index:2147483000;width:44px;height:44px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;color:#e9cf8a;
+    background:rgba(18,13,8,.72);border:1px solid rgba(222,180,77,.55);box-shadow:0 4px 14px rgba(0,0,0,.45);
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:transform .15s ease,background .15s ease,border-color .15s ease}
+  #music-toggle:hover{background:rgba(60,8,10,.85);border-color:#deb44d;transform:scale(1.06)}
+  #music-toggle:focus-visible{outline:2px solid #feeaa7;outline-offset:3px}
+  #music-toggle .off{display:none}
+  #music-toggle[aria-pressed="true"]{color:#9e958a}
+  #music-toggle[aria-pressed="true"] .on{display:none}
+  #music-toggle[aria-pressed="true"] .off{display:block}
+</style>
+<script>
+(function(){
+  var btn=document.getElementById('music-toggle'), KEY='shatranj-music-muted';
+  function saved(){try{return localStorage.getItem(KEY)==='1'}catch(e){return false}}
+  function save(v){try{localStorage.setItem(KEY,v?'1':'0')}catch(e){}}
+  function paint(m){btn.setAttribute('aria-pressed',m?'true':'false');var t=m?'Unmute music':'Mute music';btn.setAttribute('aria-label',t);btn.title=t;}
+  function hook(){
+    var music=window.shatranjMusic; if(!music){return setTimeout(hook,100);}
+    var orig=music.setMuted.bind(music);
+    music.setMuted=function(v){orig(v);paint(!!v);};   // keeps the icon in sync with the menu's mute too
+    if(saved()) music.setMuted(true); else paint(false);
+    ['pointerdown','mousedown','touchstart','click'].forEach(function(ev){btn.addEventListener(ev,function(e){e.stopPropagation();},true)});
+    btn.addEventListener('click',function(){var m=!music.muted;music.setMuted(m);save(m);});
+  }
+  hook();
+})();
+</script>
+
 
 </body></html>

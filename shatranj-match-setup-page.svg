@@ -1,0 +1,428 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 900 1200"
+  width="900"
+  height="1200"
+  fill="none"
+>
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800&amp;family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&amp;display=swap');
+      .font-cinzel { font-family: 'Cinzel', Georgia, serif; }
+      .font-cormorant { font-family: 'Cormorant Garamond', Garamond, serif; }
+    </style>
+
+    <!-- Canvas Vignette Gradient -->
+    <radialGradient id="vignetteGrad" cx="50%" cy="45%" r="75%">
+      <stop offset="0%" stop-color="#1c0a05" />
+      <stop offset="60%" stop-color="#0d0402" />
+      <stop offset="100%" stop-color="#050101" />
+    </radialGradient>
+
+    <!-- Ambient Candlelight Glow -->
+    <radialGradient id="candlelightHalo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f0a532" stop-opacity="0.22" />
+      <stop offset="55%" stop-color="#b45f14" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Parchment Gradient -->
+    <linearGradient id="parchmentFill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f3e5d0" />
+      <stop offset="35%" stop-color="#ebdabf" />
+      <stop offset="70%" stop-color="#e8d5b8" />
+      <stop offset="100%" stop-color="#dfccab" />
+    </linearGradient>
+
+    <!-- Laid Paper Pattern -->
+    <pattern id="paperWires" width="80" height="8" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="2" x2="80" y2="2" stroke="#6b421c" stroke-width="0.3" opacity="0.04" />
+      <line x1="0" y1="3" x2="80" y2="3" stroke="#ffffff" stroke-width="0.2" opacity="0.04" />
+    </pattern>
+
+    <!-- Organic Paper Fiber Filter -->
+    <filter id="folioPaperFilter" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.25" numOctaves="3" result="roughNoise" />
+      <feDisplacementMap in="SourceGraphic" in2="roughNoise" scale="1.4" xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+
+    <!-- Deep Elevation Shadow -->
+    <filter id="pageShadow" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="22" stdDeviation="20" flood-color="#000000" flood-opacity="0.85" />
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#140602" flood-opacity="0.6" />
+    </filter>
+
+    <!-- Quill Ink Bleed Filter -->
+    <filter id="quillBleed" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.08" numOctaves="2" result="noise" />
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.2" xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+
+    <!-- Gold Button Gradient -->
+    <linearGradient id="goldButtonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#feeaa7" />
+      <stop offset="25%" stop-color="#f5c760" />
+      <stop offset="60%" stop-color="#d49b2c" />
+      <stop offset="100%" stop-color="#8c580d" />
+    </linearGradient>
+
+    <!-- Banner Spearhead Blade Gradient -->
+    <linearGradient id="spearGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8b909e" />
+      <stop offset="42%" stop-color="#e2e5f0" />
+      <stop offset="55%" stop-color="#555861" />
+      <stop offset="100%" stop-color="#1b1c20" />
+    </linearGradient>
+
+    <!-- Royal Velvet Red Gradient -->
+    <linearGradient id="crimsonBannerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#240002" />
+      <stop offset="25%" stop-color="#6f0207" />
+      <stop offset="50%" stop-color="#8c040b" />
+      <stop offset="75%" stop-color="#6f0207" />
+      <stop offset="100%" stop-color="#240002" />
+    </linearGradient>
+
+    <!-- Folio Deckled Edge Clip Path -->
+    <clipPath id="manuscriptPageClip">
+      <path
+        d="
+          M 100,160
+          C 160,156 250,159 340,157
+          C 450,159 550,156 650,158
+          C 730,156 780,159 802,160
+          C 801,210 804,290 801,380
+          C 803,470 800,560 802,650
+          C 801,740 803,810 801,860
+          C 802,880 798,895 797,910
+          C 799,925 803,940 801,965
+          C 802,990 798,1005 797,1020
+          C 799,1035 803,1050 801,1070
+          C 802,1082 800,1092 802,1100
+          C 730,1098 650,1101 560,1099
+          C 450,1101 340,1098 250,1100
+          C 180,1099 130,1101 98,1100
+          C 99,1070 97,1010 99,950
+          C 97,930 101,915 100,900
+          C 97,880 101,865 99,845
+          C 100,750 97,640 99,530
+          C 98,420 100,320 98,220
+          C 97,200 100,175 98,160
+          Z
+        "
+      />
+    </clipPath>
+  </defs>
+
+  <!-- =========================================================================
+       1. CANVAS BACKDROP
+       ========================================================================= -->
+  <rect width="900" height="1200" fill="url(#vignetteGrad)" />
+
+  <!-- Candlelight Halo -->
+  <ellipse cx="450" cy="620" rx="420" ry="500" fill="url(#candlelightHalo)" />
+
+  <!-- =========================================================================
+       2. TOP LOGO BANNER (SHATRANJ)
+       ========================================================================= -->
+  <g transform="translate(180, 30) scale(0.72)">
+    <!-- Spearhead Crossbar -->
+    <rect x="62" y="13.5" width="626" height="5.5" rx="2" fill="#2a2c33" stroke="#08080a" />
+    <path d="M 64,16 L 46,11 L 28,16 L 46,21 Z" fill="url(#spearGrad)" stroke="#121317" />
+    <path d="M 686,16 L 704,11 L 722,16 L 704,21 Z" fill="url(#spearGrad)" stroke="#121317" />
+    
+    <!-- Frayed Crimson Cloth Banner -->
+    <rect x="78" y="16" width="594" height="114" fill="url(#crimsonBannerGrad)" />
+    
+    <!-- Banner Gold Crowns -->
+    <g transform="translate(112, 44)">
+      <rect width="56" height="56" rx="12" fill="#4a0105" stroke="#ffd470" stroke-width="2" />
+      <polygon points="12,42 44,42 50,20 37,28 28,12 19,28 6,20" fill="#ffd470" />
+    </g>
+    <g transform="translate(582, 44)">
+      <rect width="56" height="56" rx="12" fill="#4a0105" stroke="#ffd470" stroke-width="2" />
+      <polygon points="12,42 44,42 50,20 37,28 28,12 19,28 6,20" fill="#ffd470" />
+    </g>
+
+    <!-- SHATRANJ Title -->
+    <text
+      x="375"
+      y="84"
+      text-anchor="middle"
+      fill="#ffffff"
+      class="font-cinzel"
+      font-size="40"
+      font-weight="600"
+      letter-spacing="6"
+    >SHATRANJ</text>
+  </g>
+
+  <!-- =========================================================================
+       3. MANUSCRIPT CODEX FOLIO PAGE
+       ========================================================================= -->
+  <g filter="url(#pageShadow)">
+    <!-- Physical Paper Body Clipped to Deckled Edge -->
+    <g clip-path="url(#manuscriptPageClip)">
+      <rect x="90" y="150" width="720" height="960" fill="url(#parchmentFill)" />
+      <rect x="90" y="150" width="720" height="960" fill="url(#paperWires)" opacity="0.6" />
+
+      <!-- Top and Bottom Aging Patina -->
+      <path d="M 90,150 L 810,150 L 810,230 L 90,230 Z" fill="#9e662f" opacity="0.16" />
+      <path d="M 90,1030 L 810,1030 L 810,1110 L 90,1110 Z" fill="#9e662f" opacity="0.22" />
+
+      <!-- Dog-Ear Top Left Fold -->
+      <path d="M 98,200 C 112,180 126,170 144,160" stroke="#7a471b" stroke-width="0.9" fill="none" opacity="0.4" />
+    </g>
+
+    <!-- Deckled Edge Organic Fiber Stroke -->
+    <path
+      d="
+        M 100,160
+        C 160,156 250,159 340,157
+        C 450,159 550,156 650,158
+        C 730,156 780,159 802,160
+        C 801,210 804,290 801,380
+        C 803,470 800,560 802,650
+        C 801,740 803,810 801,860
+        C 802,880 798,895 797,910
+        C 799,925 803,940 801,965
+        C 802,990 798,1005 797,1020
+        C 799,1035 803,1050 801,1070
+        C 802,1082 800,1092 802,1100
+        C 730,1098 650,1101 560,1099
+        C 450,1101 340,1098 250,1100
+        C 180,1099 130,1101 98,1100
+        C 99,1070 97,1010 99,950
+        C 97,930 101,915 100,900
+        C 97,880 101,865 99,845
+        C 100,750 97,640 99,530
+        C 98,420 100,320 98,220
+        C 97,200 100,175 98,160
+        Z
+      "
+      fill="none"
+      stroke="#9e7246"
+      stroke-width="0.8"
+      filter="url(#folioPaperFilter)"
+      opacity="0.5"
+    />
+  </g>
+
+  <!-- =========================================================================
+       4. CODEX FOLIO CONTENT & TYPOGRAPHY
+       ========================================================================= -->
+  <g transform="translate(150, 195)">
+    <!-- 1. Folio Running Header -->
+    <line x1="0" y1="20" x2="600" y2="20" stroke="#7d481b" stroke-width="0.6" opacity="0.4" />
+    <text x="0" y="14" class="font-cinzel" font-size="11" font-weight="700" fill="#5e310e" letter-spacing="2">FOLIO II</text>
+    <text x="300" y="14" text-anchor="middle" class="font-cinzel" font-size="11" font-weight="700" fill="#5e310e" letter-spacing="3">&#10022; THE BATTLE DECREE &#10022;</text>
+    <text x="600" y="14" text-anchor="end" class="font-cinzel" font-size="11" font-weight="700" fill="#5e310e" letter-spacing="2">FIELD OF SHATRANJ</text>
+
+    <!-- 2. Chapter Title Heading -->
+    <text x="300" y="55" text-anchor="middle" class="font-cinzel" font-size="11" font-weight="800" fill="#821e25" letter-spacing="3">&#8212; CHAPTER II &#8212;</text>
+    <text x="300" y="86" text-anchor="middle" class="font-cinzel" font-size="28" font-weight="800" fill="#1f0d04" letter-spacing="1.5">CONFIGURE YOUR MATCH</text>
+    <text x="300" y="112" text-anchor="middle" class="font-cormorant" font-size="17" font-style="italic" fill="#5c3010">Inscribe your army, combat format, and computational depth, Grandmaster</text>
+
+    <!-- =======================================================================
+         SECTION I: CHOOSE YOUR ARMY
+         ======================================================================= -->
+    <g transform="translate(0, 140)">
+      <text x="0" y="0" class="font-cinzel" font-size="13" font-weight="700" fill="#5e310e" letter-spacing="1.5">
+        <tspan fill="#821e25" font-weight="800">I. </tspan>CHOOSE YOUR ARMY
+      </text>
+      <text x="600" y="0" text-anchor="end" class="font-cormorant" font-size="13" font-style="italic" fill="#704218">
+        White holds opening initiative (1. e4 / 1. d4)
+      </text>
+
+      <line x1="0" y1="12" x2="600" y2="12" stroke="#7d481b" stroke-width="0.6" opacity="0.35" />
+      <line x1="300" y1="12" x2="300" y2="115" stroke="#7d481b" stroke-width="0.6" opacity="0.3" />
+      <line x1="0" y1="115" x2="600" y2="115" stroke="#7d481b" stroke-width="0.6" opacity="0.35" />
+
+      <!-- Left Choice: White Vanguard (Decreed / Selected) -->
+      <g transform="translate(10, 20)">
+        <!-- Watercolor vermilion wash -->
+        <rect x="0" y="0" width="280" height="85" rx="6" fill="#821e25" opacity="0.06" />
+
+        <!-- Hand-drawn Quill Encirclement -->
+        <g filter="url(#quillBleed)">
+          <path
+            d="M 12,42 C 10,18 42,8 90,8 C 138,8 174,18 176,42 C 178,66 142,78 92,79 C 42,80 8,68 10,44"
+            fill="none"
+            stroke="#9e181f"
+            stroke-width="1.8"
+            opacity="0.85"
+          />
+        </g>
+
+        <!-- White Staunton Pawn Woodcut -->
+        <g transform="translate(15, 16)">
+          <circle cx="20" cy="14" r="8" fill="#fcf6eb" stroke="#3d1d07" stroke-width="1.5" />
+          <path d="M 14,24 L 26,24 L 28,42 L 12,42 Z" fill="#fcf6eb" stroke="#3d1d07" stroke-width="1.5" />
+          <rect x="8" y="42" width="24" height="6" rx="2" fill="#fcf6eb" stroke="#3d1d07" stroke-width="1.5" />
+        </g>
+
+        <!-- Text Labels -->
+        <text x="65" y="36" class="font-cinzel" font-size="16" font-weight="700" fill="#821e25">&#9670; White Vanguard</text>
+        <path d="M 65,42 Q 130,46 195,43" stroke="#821e25" stroke-width="1.5" fill="none" opacity="0.8" />
+        <text x="65" y="60" class="font-cormorant" font-size="13" font-style="italic" fill="#5c3010">Attacking tempos &amp; central space control</text>
+
+        <!-- Stamped Red Wax Seal: DECREED -->
+        <g transform="translate(225, 4) rotate(6) scale(0.65)">
+          <circle cx="28" cy="28" r="26" fill="#8f171d" opacity="0.9" />
+          <circle cx="28" cy="28" r="23" fill="none" stroke="#fff4db" stroke-width="1" stroke-dasharray="2 1" opacity="0.6" />
+          <!-- Crown -->
+          <polygon points="18,32 38,32 42,20 34,25 28,14 22,25 14,20" fill="#fff4db" />
+          <text x="28" y="44" text-anchor="middle" class="font-cinzel" font-size="7" font-weight="700" fill="#fff4db" letter-spacing="1">DECREED</text>
+        </g>
+      </g>
+
+      <!-- Right Choice: Black Garrison -->
+      <g transform="translate(320, 20)">
+        <!-- Black Pawn Woodcut -->
+        <g transform="translate(15, 16)">
+          <circle cx="20" cy="14" r="8" fill="#1f0d04" stroke="#000000" stroke-width="1.5" />
+          <path d="M 14,24 L 26,24 L 28,42 L 12,42 Z" fill="#1f0d04" stroke="#000000" stroke-width="1.5" />
+          <rect x="8" y="42" width="24" height="6" rx="2" fill="#1f0d04" stroke="#000000" stroke-width="1.5" />
+        </g>
+        <text x="65" y="36" class="font-cinzel" font-size="16" font-weight="700" fill="#1f0d04">Black Garrison</text>
+        <text x="65" y="60" class="font-cormorant" font-size="13" font-style="italic" fill="#5c3010">Counter-punching &amp; defensive fortress</text>
+      </g>
+    </g>
+
+    <!-- =======================================================================
+         SECTION II: COMBAT FORMAT
+         ======================================================================= -->
+    <g transform="translate(0, 290)">
+      <text x="0" y="0" class="font-cinzel" font-size="13" font-weight="700" fill="#5e310e" letter-spacing="1.5">
+        <tspan fill="#821e25" font-weight="800">II. </tspan>COMBAT FORMAT
+      </text>
+
+      <line x1="0" y1="12" x2="600" y2="12" stroke="#7d481b" stroke-width="0.6" opacity="0.35" />
+
+      <!-- Format Option 1: Solitary Trial (Selected) -->
+      <g transform="translate(0, 25)">
+        <rect x="0" y="0" width="190" height="135" rx="6" fill="#821e25" opacity="0.05" stroke="#821e25" stroke-width="1.2" />
+        <!-- Crown Woodcut Icon -->
+        <g transform="translate(80, 16) scale(0.7)">
+          <circle cx="20" cy="20" r="18" fill="#f4ece1" stroke="#3d1d07" stroke-width="1.2" />
+          <polygon points="10,26 30,26 34,16 28,20 20,12 12,20 6,16" fill="#821e25" />
+        </g>
+        <text x="95" y="68" text-anchor="middle" class="font-cinzel" font-size="13" font-weight="700" fill="#821e25">&#9670; Solitary Trial</text>
+        <text x="95" y="88" text-anchor="middle" class="font-cormorant" font-size="12" font-style="italic" fill="#5c3010">Duel the Royal Engine</text>
+        <text x="95" y="118" text-anchor="middle" class="font-cinzel" font-size="10" font-weight="700" fill="#821e25" letter-spacing="1">VS AI ENGINE</text>
+      </g>
+
+      <!-- Format Option 2: Pass & Play -->
+      <g transform="translate(205, 25)">
+        <rect x="0" y="0" width="190" height="135" rx="6" fill="none" stroke="#7d481b" stroke-width="0.6" opacity="0.5" />
+        <!-- Crossed Swords Icon -->
+        <g transform="translate(80, 16) scale(0.7)">
+          <circle cx="20" cy="20" r="18" fill="#f4ece1" stroke="#3d1d07" stroke-width="1.2" />
+          <line x1="10" y1="10" x2="30" y2="30" stroke="#3d1d07" stroke-width="2" />
+          <line x1="30" y1="10" x2="10" y2="30" stroke="#3d1d07" stroke-width="2" />
+        </g>
+        <text x="95" y="68" text-anchor="middle" class="font-cinzel" font-size="13" font-weight="700" fill="#1f0d04">Pass &amp; Play</text>
+        <text x="95" y="88" text-anchor="middle" class="font-cormorant" font-size="12" font-style="italic" fill="#5c3010">Hotseat on single table</text>
+        <text x="95" y="118" text-anchor="middle" class="font-cinzel" font-size="10" font-weight="700" fill="#693914" letter-spacing="1">SAME DEVICE</text>
+      </g>
+
+      <!-- Format Option 3: Courier Duel -->
+      <g transform="translate(410, 25)">
+        <rect x="0" y="0" width="190" height="135" rx="6" fill="none" stroke="#7d481b" stroke-width="0.6" opacity="0.5" />
+        <!-- Wax Letter Icon -->
+        <g transform="translate(80, 16) scale(0.7)">
+          <circle cx="20" cy="20" r="18" fill="#f4ece1" stroke="#3d1d07" stroke-width="1.2" />
+          <rect x="10" y="12" width="20" height="15" fill="none" stroke="#3d1d07" stroke-width="1.2" />
+          <circle cx="20" cy="20" r="3" fill="#8f171d" />
+        </g>
+        <text x="95" y="68" text-anchor="middle" class="font-cinzel" font-size="13" font-weight="700" fill="#1f0d04">Courier Duel</text>
+        <text x="95" y="88" text-anchor="middle" class="font-cormorant" font-size="12" font-style="italic" fill="#5c3010">Summon distant rival</text>
+        <text x="95" y="118" text-anchor="middle" class="font-cinzel" font-size="10" font-weight="700" fill="#693914" letter-spacing="1">ONLINE LINK</text>
+      </g>
+    </g>
+
+    <!-- =======================================================================
+         SECTION III: COMPUTATIONAL DEPTH
+         ======================================================================= -->
+    <g transform="translate(0, 480)">
+      <text x="0" y="0" class="font-cinzel" font-size="13" font-weight="700" fill="#5e310e" letter-spacing="1.5">
+        <tspan fill="#821e25" font-weight="800">III. </tspan>COMPUTATIONAL DEPTH
+      </text>
+
+      <line x1="0" y1="12" x2="600" y2="12" stroke="#7d481b" stroke-width="0.6" opacity="0.35" />
+
+      <!-- Depth 1: Novice Squire -->
+      <g transform="translate(0, 25)">
+        <rect x="0" y="0" width="190" height="115" rx="6" fill="none" stroke="#7d481b" stroke-width="0.6" opacity="0.5" />
+        <text x="95" y="32" text-anchor="middle" class="font-cinzel" font-size="13" font-weight="700" fill="#1f0d04">Novice Squire</text>
+        <text x="95" y="52" text-anchor="middle" class="font-cormorant" font-size="12" font-style="italic" fill="#5c3010">Casual tactical openings</text>
+        <text x="95" y="78" text-anchor="middle" class="font-cinzel" font-size="18" font-weight="800" fill="#3d1d07">~800</text>
+        <text x="95" y="98" text-anchor="middle" class="font-cinzel" font-size="10" font-weight="700" fill="#7d481b">DEPTH II</text>
+      </g>
+
+      <!-- Depth 2: Royal Guard (Selected) -->
+      <g transform="translate(205, 25)">
+        <rect x="0" y="0" width="190" height="115" rx="6" fill="#821e25" opacity="0.05" stroke="#821e25" stroke-width="1.2" />
+        <text x="95" y="32" text-anchor="middle" class="font-cinzel" font-size="13" font-weight="700" fill="#821e25">&#9670; Royal Guard</text>
+        <text x="95" y="52" text-anchor="middle" class="font-cormorant" font-size="12" font-style="italic" fill="#5c3010">Solid positional foresight</text>
+        <text x="95" y="78" text-anchor="middle" class="font-cinzel" font-size="18" font-weight="800" fill="#821e25">~1400</text>
+        <text x="95" y="98" text-anchor="middle" class="font-cinzel" font-size="10" font-weight="700" fill="#821e25">DEPTH III</text>
+      </g>
+
+      <!-- Depth 3: Grand Vizier -->
+      <g transform="translate(410, 25)">
+        <rect x="0" y="0" width="190" height="115" rx="6" fill="none" stroke="#7d481b" stroke-width="0.6" opacity="0.5" />
+        <text x="95" y="32" text-anchor="middle" class="font-cinzel" font-size="13" font-weight="700" fill="#1f0d04">Grand Vizier</text>
+        <text x="95" y="52" text-anchor="middle" class="font-cormorant" font-size="12" font-style="italic" fill="#5c3010">Merciless deep calculation</text>
+        <text x="95" y="78" text-anchor="middle" class="font-cinzel" font-size="18" font-weight="800" fill="#3d1d07">~1900</text>
+        <text x="95" y="98" text-anchor="middle" class="font-cinzel" font-size="10" font-weight="700" fill="#7d481b">DEPTH IV</text>
+      </g>
+    </g>
+
+    <!-- =======================================================================
+         BOTTOM FOOTER & BATTLE CTA
+         ======================================================================= -->
+    <g transform="translate(0, 680)">
+      <line x1="0" y1="0" x2="600" y2="0" stroke="#7d481b" stroke-width="0.6" opacity="0.35" />
+
+      <!-- Illuminated Golden Seal CTA Button -->
+      <g transform="translate(100, 25)">
+        <rect
+          x="0"
+          y="0"
+          width="400"
+          height="54"
+          rx="6"
+          fill="url(#goldButtonGrad)"
+          stroke="#4a2c04"
+          stroke-width="1.2"
+        />
+        <rect
+          x="2"
+          y="2"
+          width="396"
+          height="50"
+          rx="4"
+          fill="none"
+          stroke="#ffffff"
+          stroke-width="0.75"
+          opacity="0.4"
+        />
+        <!-- Center Text -->
+        <text
+          x="200"
+          y="34"
+          text-anchor="middle"
+          class="font-cinzel"
+          font-size="15"
+          font-weight="800"
+          fill="#1c0b02"
+          letter-spacing="2.5"
+        >COMMENCE BATTLE DECREE &#10022;</text>
+      </g>
+
+      <!-- Folio Page Number -->
+      <text x="300" y="110" text-anchor="middle" class="font-cinzel" font-size="10" font-weight="700" fill="#5e310e" letter-spacing="3">&#8212; II &#8212;</text>
+    </g>
+  </g>
+</svg>

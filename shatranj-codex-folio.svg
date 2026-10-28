@@ -1,0 +1,271 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 760 980"
+  width="760"
+  height="980"
+  fill="none"
+>
+  <defs>
+    <!-- Page Boundary Clip Path: Organic deckled edges, thumb notches, and natural paper edge waviness -->
+    <clipPath id="singleFolioClip" clipPathUnits="userSpaceOnUse">
+      <path
+        d="
+          M 28,30
+          C 90,26 180,29 270,27
+          C 380,29 480,26 580,28
+          C 660,26 710,29 732,30
+          C 731,80 734,160 731,250
+          C 733,340 730,430 732,520
+          C 731,610 733,680 731,730
+          C 732,750 728,765 727,780
+          C 729,795 733,810 731,835
+          C 732,860 728,875 727,890
+          C 729,905 733,920 731,940
+          C 732,952 730,962 732,970
+          C 660,968 580,971 490,969
+          C 380,971 270,968 180,970
+          C 110,969 60,971 28,970
+          C 29,940 27,880 29,820
+          C 27,800 31,785 30,770
+          C 27,750 31,735 29,715
+          C 30,620 27,510 29,400
+          C 28,290 30,190 28,90
+          C 27,70 30,45 28,30
+          Z
+        "
+      />
+    </clipPath>
+
+    <!-- Warm creamy parchment gradient -->
+    <linearGradient id="parchmentGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f2e4cf" />
+      <stop offset="35%" stop-color="#ebd9be" />
+      <stop offset="70%" stop-color="#e7d4b6" />
+      <stop offset="100%" stop-color="#deccaa" />
+    </linearGradient>
+
+    <!-- Laid Paper Wire Lines (Fine horizontal handmade wire ribs) -->
+    <pattern id="laidPaperPattern" width="100" height="8" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="2" x2="100" y2="2" stroke="#6b421c" stroke-width="0.25" opacity="0.04" />
+      <line x1="0" y1="3" x2="100" y2="3" stroke="#ffffff" stroke-width="0.2" opacity="0.04" />
+    </pattern>
+
+    <!-- Organic Paper Pulp Fiber Distortion Filter -->
+    <filter id="paperFiberFilter" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.25" numOctaves="3" result="roughNoise" />
+      <feDisplacementMap in="SourceGraphic" in2="roughNoise" scale="1.4" xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+
+    <!-- Page Shadow Filter -->
+    <filter id="folioDropShadow" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="18" stdDeviation="16" flood-color="#000000" flood-opacity="0.65" />
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#230f05" flood-opacity="0.45" />
+    </filter>
+
+    <!-- Top Corners Patina Wash -->
+    <radialGradient id="topPatina" cx="50%" cy="2%" r="55%">
+      <stop offset="0%" stop-color="#ad753c" stop-opacity="0.22" />
+      <stop offset="60%" stop-color="#bc854d" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="#ebd9be" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Bottom Corners Patina Wash -->
+    <radialGradient id="bottomPatina" cx="50%" cy="98%" r="50%">
+      <stop offset="0%" stop-color="#9e662f" stop-opacity="0.26" />
+      <stop offset="55%" stop-color="#b57e46" stop-opacity="0.09" />
+      <stop offset="100%" stop-color="#ebd9be" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Lateral Edge Oxidation Washes -->
+    <linearGradient id="leftPatina" x1="0%" y1="0%" x2="10%" y2="0%">
+      <stop offset="0%" stop-color="#a36e37" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#ebd9be" stop-opacity="0" />
+    </linearGradient>
+
+    <linearGradient id="rightPatina" x1="100%" y1="0%" x2="90%" y2="0%">
+      <stop offset="0%" stop-color="#a36e37" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#ebd9be" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+
+  <!-- Physical Manuscript Sheet with Under-Shadow -->
+  <g filter="url(#folioDropShadow)">
+    <!-- 1. Under-layer physical paper cast shadow -->
+    <path
+      d="
+        M 28,30
+        C 90,26 180,29 270,27
+        C 380,29 480,26 580,28
+        C 660,26 710,29 732,30
+        C 731,80 734,160 731,250
+        C 733,340 730,430 732,520
+        C 731,610 733,680 731,730
+        C 732,750 728,765 727,780
+        C 729,795 733,810 731,835
+        C 732,860 728,875 727,890
+        C 729,905 733,920 731,940
+        C 732,952 730,962 732,970
+        C 660,968 580,971 490,969
+        C 380,971 270,968 180,970
+        C 110,969 60,971 28,970
+        C 29,940 27,880 29,820
+        C 27,800 31,785 30,770
+        C 27,750 31,735 29,715
+        C 30,620 27,510 29,400
+        C 28,290 30,190 28,90
+        C 27,70 30,45 28,30
+        Z
+      "
+      transform="translate(2.5, 3.5)"
+      fill="#120702"
+      opacity="0.32"
+    />
+
+    <!-- 2. Paper Body and Edge Contour Layers Clipped to Deckled Edge -->
+    <g clip-path="url(#singleFolioClip)">
+      <!-- Base Paper Sheet Body -->
+      <path
+        d="
+          M 28,30
+          C 90,26 180,29 270,27
+          C 380,29 480,26 580,28
+          C 660,26 710,29 732,30
+          C 731,80 734,160 731,250
+          C 733,340 730,430 732,520
+          C 731,610 733,680 731,730
+          C 732,750 728,765 727,780
+          C 729,795 733,810 731,835
+          C 732,860 728,875 727,890
+          C 729,905 733,920 731,940
+          C 732,952 730,962 732,970
+          C 660,968 580,971 490,969
+          C 380,971 270,968 180,970
+          C 110,969 60,971 28,970
+          C 29,940 27,880 29,820
+          C 27,800 31,785 30,770
+          C 27,750 31,735 29,715
+          C 30,620 27,510 29,400
+          C 28,290 30,190 28,90
+          C 27,70 30,45 28,30
+          Z
+        "
+        fill="url(#parchmentGrad)"
+      />
+
+      <!-- Laid Paper Texture Lines -->
+      <path
+        d="
+          M 28,30 C 90,26 180,29 270,27 C 380,29 480,26 580,28 C 660,26 710,29 732,30
+          C 731,80 734,160 731,250 C 733,340 730,430 732,520 C 731,610 733,680 731,730
+          C 732,750 728,765 727,780 C 729,795 733,810 731,835 C 732,860 728,875 727,890
+          C 729,905 733,920 731,940 C 732,952 730,962 732,970 C 660,968 580,971 490,969
+          C 380,971 270,968 180,970 C 110,969 60,971 28,970 C 29,940 27,880 29,820
+          C 27,800 31,785 30,770 C 27,750 31,735 29,715 C 30,620 27,510 29,400
+          C 28,290 30,190 28,90 C 27,70 30,45 28,30 Z
+        "
+        fill="url(#laidPaperPattern)"
+        opacity="0.75"
+      />
+
+      <!-- Edge Patina Washes -->
+      <path
+        d="M 28,30 L 732,30 L 732,970 L 28,970 Z"
+        fill="url(#topPatina)"
+      />
+      <path
+        d="M 28,30 L 732,30 L 732,970 L 28,970 Z"
+        fill="url(#bottomPatina)"
+      />
+      <path
+        d="M 28,30 L 732,30 L 732,970 L 28,970 Z"
+        fill="url(#leftPatina)"
+      />
+      <path
+        d="M 28,30 L 732,30 L 732,970 L 28,970 Z"
+        fill="url(#rightPatina)"
+      />
+
+      <!-- Classic Top Left Corner Dog-Ear Crease -->
+      <g opacity="0.38" stroke="#7a471b" stroke-width="0.9" fill="none">
+        <path d="M 28,68 C 42,48 56,38 74,28" />
+        <path d="M 29,69 C 43,49 57,39 75,29" stroke="#ffffff" stroke-width="0.45" opacity="0.45" />
+      </g>
+
+      <!-- Handling crease near bottom right -->
+      <path
+        d="M 731,920 C 705,905 680,910 650,930"
+        stroke="#7a471b"
+        stroke-width="0.7"
+        opacity="0.25"
+        fill="none"
+      />
+    </g>
+
+    <!-- 3. Paper Fiber Edge Boundary Stroke with rough organic displacement -->
+    <path
+      d="
+        M 28,30
+        C 90,26 180,29 270,27
+        C 380,29 480,26 580,28
+        C 660,26 710,29 732,30
+        C 731,80 734,160 731,250
+        C 733,340 730,430 732,520
+        C 731,610 733,680 731,730
+        C 732,750 728,765 727,780
+        C 729,795 733,810 731,835
+        C 732,860 728,875 727,890
+        C 729,905 733,920 731,940
+        C 732,952 730,962 732,970
+        C 660,968 580,971 490,969
+        C 380,971 270,968 180,970
+        C 110,969 60,971 28,970
+        C 29,940 27,880 29,820
+        C 27,800 31,785 30,770
+        C 27,750 31,735 29,715
+        C 30,620 27,510 29,400
+        C 28,290 30,190 28,90
+        C 27,70 30,45 28,30
+        Z
+      "
+      fill="none"
+      stroke="#9e7246"
+      stroke-width="0.8"
+      stroke-linejoin="round"
+      stroke-linecap="round"
+      filter="url(#paperFiberFilter)"
+      opacity="0.52"
+    />
+
+    <!-- Paper Rim Highlight Specular Line -->
+    <path
+      d="
+        M 28,30
+        C 90,26 180,29 270,27
+        C 380,29 480,26 580,28
+        C 660,26 710,29 732,30
+        C 731,80 734,160 731,250
+        C 733,340 730,430 732,520
+        C 731,610 733,680 731,730
+        C 732,750 728,765 727,780
+        C 729,795 733,810 731,835
+        C 732,860 728,875 727,890
+        C 729,905 733,920 731,940
+        C 732,952 730,962 732,970
+        C 660,968 580,971 490,969
+        C 380,971 270,968 180,970
+        C 110,969 60,971 28,970
+        C 29,940 27,880 29,820
+        C 27,800 31,785 30,770
+        C 27,750 31,735 29,715
+        C 30,620 27,510 29,400
+        C 28,290 30,190 28,90
+        C 27,70 30,45 28,30
+        Z
+      "
+      fill="none"
+      stroke="#fffcf5"
+      stroke-width="0.45"
+      opacity="0.4"
+    />
+  </g>
+</svg>

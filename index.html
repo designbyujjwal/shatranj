@@ -44,8 +44,9 @@ setTimeout(function(){var n=document.getElementById('boot-note');if(n){n.innerHT
     var orig=music.setMuted.bind(music);
     music.setMuted=function(v){orig(v);paint(!!v);};   // keeps the icon in sync with the menu's mute too
     if(saved()) music.setMuted(true); else paint(false);
-    ['pointerdown','mousedown','touchstart','click'].forEach(function(ev){btn.addEventListener(ev,function(e){e.stopPropagation();},true)});
-    btn.addEventListener('click',function(){var m=!music.muted;music.setMuted(m);save(m);});
+    // stop presses on the button from also reaching the board (bubble phase, so the button's own click still runs)
+    ['pointerdown','pointerup','mousedown','mouseup','touchstart','touchend'].forEach(function(ev){btn.addEventListener(ev,function(e){e.stopPropagation();})});
+    btn.addEventListener('click',function(e){e.stopPropagation();var m=!music.muted;music.setMuted(m);save(m);});
   }
   hook();
 })();

@@ -28,6 +28,7 @@ setTimeout(function(){var n=document.getElementById('boot-note');if(n){n.innerHT
     -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:transform .15s ease,background .15s ease,border-color .15s ease}
   #music-toggle:hover{background:rgba(60,8,10,.85);border-color:#deb44d;transform:scale(1.06)}
   #music-toggle:focus-visible{outline:2px solid #feeaa7;outline-offset:3px}
+  #music-toggle.is-hidden{display:none}
   #music-toggle .off{display:none}
   #music-toggle[aria-pressed="true"]{color:#9e958a}
   #music-toggle[aria-pressed="true"] .on{display:none}
@@ -44,6 +45,11 @@ setTimeout(function(){var n=document.getElementById('boot-note');if(n){n.innerHT
     var orig=music.setMuted.bind(music);
     music.setMuted=function(v){orig(v);paint(!!v);};   // keeps the icon in sync with the menu's mute too
     if(saved()) music.setMuted(true); else paint(false);
+    // hide the button while playing on the board (music is silent there), show it again on menus
+    var origMood=music.setMood.bind(music);
+    function place(){btn.classList.toggle('is-hidden', music.mood==='board');}
+    music.setMood=function(v){origMood(v);place();};
+    place();
     // stop presses on the button from also reaching the board (bubble phase, so the button's own click still runs)
     ['pointerdown','pointerup','mousedown','mouseup','touchstart','touchend'].forEach(function(ev){btn.addEventListener(ev,function(e){e.stopPropagation();})});
     btn.addEventListener('click',function(e){e.stopPropagation();var m=!music.muted;music.setMuted(m);save(m);});

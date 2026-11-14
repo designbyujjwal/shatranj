@@ -31,6 +31,7 @@ import { multiplayer } from './services/multiplayer';
 import { MultiplayerModal } from './components/MultiplayerModal';
 import { CourierInviteScreen } from './components/CourierInviteScreen';
 import { OpponentVideoCard } from './components/OpponentVideoCard';
+import { duelApiUrl } from './services/duelServer';
 import type {
   OneEuroFilterParams,
   PlayerProfile,
@@ -350,7 +351,7 @@ export default function App() {
   useEffect(() => {
     if (!inviteOnLoad) return;
     sessionStorage.setItem('spatial_chess_onboarded', 'true');
-    fetch(`/api/room/${encodeURIComponent(inviteOnLoad.roomCode)}`)
+    fetch(duelApiUrl(`/api/room/${encodeURIComponent(inviteOnLoad.roomCode)}`))
       .then((res) => res.json())
       .then((data) => {
         if (data && data.exists) {

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Eye, Award, X } from 'lucide-react';
 import { soundEffects } from '../utils/audio';
+import { assetUrl } from '../utils/assetUrl';
 
 interface GameOverModalProps {
   winner: 'w' | 'b' | 'draw' | null;
@@ -10,7 +11,7 @@ interface GameOverModalProps {
 }
 
 // Load the badge layers with the app, so the entrance never starts before its images are ready
-const BADGE_LAYERS = ['/victory-shield.png', '/victory-shield-lit.png', '/victory-sword.png'];
+const BADGE_LAYERS = ['victory-shield.png', 'victory-shield-lit.png', 'victory-sword.png'].map(assetUrl);
 if (typeof window !== 'undefined') BADGE_LAYERS.forEach((src) => { new Image().src = src; });
 if (typeof window !== 'undefined') soundEffects.preloadVictoryMusic();
 
@@ -225,16 +226,16 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({ winner, onRestart,
           <div className="pointer-events-none victory-shockwave" aria-hidden="true" />
           <div className="pointer-events-none victory-shockwave is-strike" aria-hidden="true" />
           <div ref={orbitRef} className="absolute inset-0 will-change-transform">
-            <img src="/victory-shield.png" alt="" className="victory-medallion-img absolute inset-0 w-full h-full object-contain pointer-events-none" draggable={false} />
+            <img src={BADGE_LAYERS[0]} alt="" className="victory-medallion-img absolute inset-0 w-full h-full object-contain pointer-events-none" draggable={false} />
             {/* the shield as the sword leaves it: lit by the sword's glow and carrying its shadow */}
             <img
-              src="/victory-shield-lit.png"
+              src={BADGE_LAYERS[1]}
               alt="Victory badge: a worn red shield with a gold emblem and a glowing sword"
               className="victory-lit absolute inset-0 w-full h-full object-contain pointer-events-none"
               draggable={false}
             />
             <div ref={swordRef} className="absolute inset-0 will-change-transform">
-              <img src="/victory-sword.png" alt="" className="victory-sword absolute inset-0 w-full h-full object-contain pointer-events-none" draggable={false} />
+              <img src={BADGE_LAYERS[2]} alt="" className="victory-sword absolute inset-0 w-full h-full object-contain pointer-events-none" draggable={false} />
             </div>
           </div>
         </div>

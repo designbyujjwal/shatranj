@@ -1,10 +1,11 @@
-# Render blueprint: the game and its small multiplayer server (invite rooms and the live duel link) as one web service
+# Render blueprint: the duel server (invite rooms and the live duel link). The game itself is on GitHub Pages,
+# but this service serves it too, from the same build.
 services:
   - type: web
     name: playshatranj   # the service name sets the address: https://playshatranj.onrender.com
     runtime: node
     plan: free
-    branch: royal-study
+    branch: main
     buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /

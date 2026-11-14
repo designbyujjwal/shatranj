@@ -10,8 +10,9 @@
  *
  * Both are scaled dynamically by the user's draggable background music volume slider (0% to 100%).
  */
+import { assetUrl } from './assetUrl';
 
-const TRACK_URL = '/music/royal-battle.mp3';
+const TRACK_URL = assetUrl('music/royal-battle.mp3');
 
 const STORAGE_KEY_VOLUME = 'shatranj_bg_music_user_volume';
 const STORAGE_KEY_MUTED = 'shatranj_bg_music_is_muted';

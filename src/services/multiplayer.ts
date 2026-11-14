@@ -1,5 +1,6 @@
 import type { Square } from 'chess.js';
 import type { PieceColor, MoveRecord, OnlineOpponent } from '../types';
+import { duelSocketUrl } from './duelServer';
 
 export interface MultiplayerCallbacks {
   onRoomJoined?: (data: {
@@ -227,9 +228,8 @@ class MultiplayerService {
       this.ws = null;
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // Dedicated /api/ws endpoint prevents Vite HMR interference
-    const wsUrl = `${protocol}//${window.location.host}/api/ws`;
+    // Dedicated /api/ws endpoint prevents Vite HMR interference; the server may live elsewhere (duelServer)
+    const wsUrl = duelSocketUrl();
 
     try {
       this.ws = new WebSocket(wsUrl);

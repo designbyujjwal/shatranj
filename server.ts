@@ -94,8 +94,10 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;   // hosts such as Render set PORT; 3000 locally
   const server = http.createServer(app);
 
-  app.use((_req, res, next) => {
+  app.use((req, res, next) => {
     res.setHeader('Permissions-Policy', 'autoplay=*');
+    // The game can be served from elsewhere (GitHub Pages) and still ask about rooms
+    if (req.path.startsWith('/api/')) res.setHeader('Access-Control-Allow-Origin', '*');
     next();
   });
 

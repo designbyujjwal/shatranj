@@ -1,4 +1,5 @@
 import React from 'react';
+import { assetUrl } from '../utils/assetUrl';
 
 interface ChessIoLogoProps {
   className?: string;
@@ -27,7 +28,7 @@ export const ChessIoLogo: React.FC<ChessIoLogoProps> = ({
       title="Shatranj"
     >
       <img
-        src="/shatranj-logo-compact.png"
+        src={assetUrl('shatranj-logo-compact.png')}
         alt="Shatranj, the royal game"
         className={imageClassName || "h-7 sm:h-8 md:h-9 w-auto max-w-[220px] object-contain filter drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)] pointer-events-none"}
       />

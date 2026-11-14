@@ -2,6 +2,7 @@
  * Procedural audio synthesizer using Web Audio API.
  * Provides realistic physical chess piece sounds, tactile gestures, and game alerts.
  */
+import { assetUrl } from './assetUrl';
 
 class ChessAudioEngine {
   private ctx: AudioContext | null = null;
@@ -386,7 +387,7 @@ class ChessAudioEngine {
 
   // The recorded victory fanfare ("Victory Fanfare #1" by PhatPhrogStudio, Pixabay Content License),
   // trimmed to the part that fits the winner screen. Until the file is present, the synthesized fanfare plays.
-  private static FANFARE_URL = '/sounds/victory-fanfare.mp3';
+  private static FANFARE_URL = assetUrl('sounds/victory-fanfare.mp3');
   private static FANFARE_FROM = 2.42;   // the music starts as the screen opens, 2 s before the strike, so the recording's
                                         // first full-brass hit (at 4.42 s) lands with the sword
   private static FANFARE_LENGTH = 12.6; // through the peak and the natural wind-down to its last note

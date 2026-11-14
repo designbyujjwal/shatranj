@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Evaluator, Brush, SUBTRACTION } from 'three-bvh-csg';
 import type { PieceType } from '../types';
+import { assetUrl } from '../utils/assetUrl';
 
 /**
  * Procedural 3D geometries for luxury Staunton chess pieces matching the orthographic reference image:
@@ -46,7 +47,7 @@ export function loadRookGLTFGeometry(callback?: (geom: THREE.BufferGeometry) => 
 
   const loader = new GLTFLoader();
   loader.load(
-    '/models/rook.glb',
+    assetUrl('models/rook.glb'),
     (gltf) => {
       let gltfGeom: THREE.BufferGeometry | null = null;
       gltf.scene.traverse((child) => {
@@ -93,7 +94,7 @@ export function loadBishopGLTFGeometry(callback?: (geom: THREE.BufferGeometry) =
 
   const loader = new GLTFLoader();
   loader.load(
-    '/models/bishop.glb',
+    assetUrl('models/bishop.glb'),
     (gltf) => {
       let gltfGeom: THREE.BufferGeometry | null = null;
       gltf.scene.traverse((child) => {
@@ -140,7 +141,7 @@ export function loadQueenGLTFGeometry(callback?: (geom: THREE.BufferGeometry) =>
 
   const loader = new GLTFLoader();
   loader.load(
-    '/models/queen.glb',
+    assetUrl('models/queen.glb'),
     (gltf) => {
       let gltfGeom: THREE.BufferGeometry | null = null;
       gltf.scene.traverse((child) => {
@@ -187,7 +188,7 @@ export function loadKingGLTFGeometry(callback?: (geom: THREE.BufferGeometry) => 
 
   const loader = new GLTFLoader();
   loader.load(
-    '/models/king.glb',
+    assetUrl('models/king.glb'),
     (gltf) => {
       let gltfGeom: THREE.BufferGeometry | null = null;
       gltf.scene.traverse((child) => {
@@ -229,7 +230,7 @@ export function loadKnightGLTFGeometry(callback?: (geom: THREE.BufferGeometry) =
 
   const loader = new GLTFLoader();
   loader.load(
-    '/models/knight.glb',
+    assetUrl('models/knight.glb'),
     (gltf) => {
       let gltfGeom: THREE.BufferGeometry | null = null;
       gltf.scene.traverse((child) => {

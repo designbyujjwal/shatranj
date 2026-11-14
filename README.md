@@ -24,5 +24,5 @@ Then open http://localhost:3000. This runs the game and the duel server together
 
 ## Publish
 
-- **Game:** `scripts/publish-pages.sh` builds the game for `/<repo>/` and pushes it to the `gh-pages` branch, which GitHub Pages serves.
+- **Game:** every push to `main` runs `.github/workflows/pages.yml`, which builds the game for `/<repo>/` and publishes it on GitHub Pages.
 - **Duel server:** Render builds `main` with `npm run build` and starts it with `npm start` (it listens on `PORT`).

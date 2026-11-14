@@ -112,6 +112,6 @@ export interface VoiceControlState {
   interimTranscript: string;
   lastCommand: string | null;
   lastFeedback: string | null;
-  feedbackType: 'success' | 'warning' | 'error' | 'info' | null;
+  feedbackType: 'success' | 'warning' | 'error' | 'info' | 'question' | null;
   voiceFeedbackEnabled: boolean;
 }

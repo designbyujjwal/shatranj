@@ -267,6 +267,12 @@ export const VoiceControlHUD: React.FC<VoiceControlHUDProps> = ({
               <span className="text-[#821e25] italic font-cormorant">
                 "{voiceState.interimTranscript}..."
               </span>
+            ) : voiceState.lastFeedback && voiceState.feedbackType === 'question' ? (
+              // A question from the herald: shown whole (up to two lines), so its choices can be read while answering
+              <span className="flex items-center gap-1.5 font-cinzel text-xs font-semibold text-[#821e25] whitespace-normal">
+                <HelpCircle className="w-3.5 h-3.5 shrink-0" />
+                <span className="line-clamp-2 leading-tight">{voiceState.lastFeedback}</span>
+              </span>
             ) : voiceState.lastFeedback ? (
               <span
                 className={`flex items-center gap-1 font-cinzel text-xs ${

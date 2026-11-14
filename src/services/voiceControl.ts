@@ -12,7 +12,8 @@ export interface VoiceMoveMatch {
 
 export type VoiceCommandHandler = (cmd: string, param?: string) => void;
 export type VoiceMoveHandler = (from: Square, to: Square, san: string, description?: string) => void;
-export type VoiceFeedbackHandler = (message: string, type: 'success' | 'warning' | 'error' | 'info') => void;
+export type VoiceFeedbackType = 'success' | 'warning' | 'error' | 'info' | 'question';
+export type VoiceFeedbackHandler = (message: string, type: VoiceFeedbackType) => void;
 export type VoiceTranscriptHandler = (interim: string, final: string) => void;
 
 // SpeechRecognition type declarations for browser environments
@@ -27,8 +28,14 @@ declare global {
 const QUEUE_REPEAT_WINDOW_MS = 8000;
 /** The player's own move animates for up to ~0.6 s before the turn passes. */
 const MOVE_IN_FLIGHT_MS = 900;
-/** How long a half-heard command ("Bishop…", "…to F3") waits for the missing part. */
-const PIECE_FRAGMENT_MS = 7000;   // long enough to hear the spoken question and answer it
+/** How long a half-heard command ("Bishop…", "…to F3", "which knight?") waits for the missing part. */
+const PIECE_FRAGMENT_MS = 12000;   // long enough to hear the spoken question, think, and answer it
+
+/** The player's own English (en-IN, en-GB…) is recognised better than a fixed en-US. */
+const speechLang = () => {
+  const langs = typeof navigator !== 'undefined' ? [...(navigator.languages || []), navigator.language] : [];
+  return langs.find((l) => /^en(-|$)/i.test(l || '')) || 'en-US';
+};
 
 class VoiceControlService {
   private recognition: any | null = null;
@@ -76,6 +83,8 @@ class VoiceControlService {
   private isInCheck: () => boolean = () => false;
   private pieceFragment: { text: string; at: number } | null = null;   // "Bishop" said on its own, waiting for its square
   private squareFragment: { square: string; at: number } | null = null; // asked "Which piece to F3?", waiting for the piece
+  private choiceFragment: { moves: any[]; at: number } | null = null;   // asked "Which knight: B1 or F3?", waiting for one of them
+  private speakToken = 0;
 
   constructor() {
     this.checkSupport();
@@ -244,7 +253,7 @@ class VoiceControlService {
       const rec = new SpeechRec();
       rec.continuous = true;
       rec.interimResults = true;
-      rec.lang = 'en-US';
+      rec.lang = speechLang();
       rec.maxAlternatives = 5;
 
       const recordActivity = () => {
@@ -424,6 +433,7 @@ class VoiceControlService {
     const legalMoves = this.boundGetLegalMoves?.();
     if (!legalMoves || legalMoves.length === 0) return;   // not our turn: the final result gets queued
     if (Date.now() < this.moveInFlightUntil) return;
+    if (this.choiceFragment) return;   // the answer to "which one?" waits for the final words
     if (this.isSystemCommand(command.toLowerCase())) return;  // undo/restart/camera wait for the final result
 
     const joined = this.withPieceFragment(command, alternatives, false);
@@ -592,6 +602,7 @@ class VoiceControlService {
       cleanPrimary.includes('step back') ||
       cleanPrimary.includes('previous move')
     ) {
+      this.choiceFragment = null;
       this.onCommandCallback?.('undo');
       this.triggerFeedback('Undoing last move', 'info', true);
       return;
@@ -634,6 +645,7 @@ class VoiceControlService {
 
     // 2. Repeats of the move just played (the player thought it was not heard) are ignored
     const now = Date.now();
+    if (this.choiceFragment && now - this.choiceFragment.at > PIECE_FRAGMENT_MS) this.choiceFragment = null;
     if (cleanPrimary === this.lastExecutedText && now - this.lastExecutedMoveTime < QUEUE_REPEAT_WINDOW_MS) {
       return;
     }
@@ -645,30 +657,58 @@ class VoiceControlService {
       return;
     }
 
-    // 4. Assemble all candidate variations (raw phrase, alternatives, and phonetic homophones)
+    // 4. The answer to "Which knight: B1 or F3?" ("B1", "the one on F3", "F")
+    const chosen = this.answerToChoice([rawText, ...extraCandidates], legalMoves);
+    if (chosen) {
+      this.playResolvedMove(chosen, this.formatMoveDescription(chosen), cleanPrimary);
+      return;
+    }
+
+    // 5. Assemble all candidate variations (raw phrase, alternatives, and phonetic homophones)
     const candidates = [rawText, ...extraCandidates];
     const resolution = this.tryResolveMoveFromCandidates(candidates, legalMoves);
 
     if (resolution.move) {
-      this.lastExecutedMoveTime = Date.now();
-      this.lastExecutedMoveSan = resolution.move.san;
-      this.lastExecutedText = cleanPrimary;
-      this.moveInFlightUntil = Date.now() + MOVE_IN_FLIGHT_MS;
-      this.pendingCommand = null;
-      this.pieceFragment = null;   // a half-heard command is finished once a move plays
-      this.squareFragment = null;
-      this.triggerFeedback(resolution.description, 'success', true);
-      this.onMoveCallback?.(resolution.move.from, resolution.move.to, resolution.move.san, resolution.description);
+      this.playResolvedMove(resolution.move, resolution.description, cleanPrimary);
       return;
     }
 
-    // If an explicit piece move was requested but illegal, announce specific error
-    // The square was clear but not the piece: ask which piece, and let a one-word answer finish the move
+    // Two or more pieces of the same kind can make the move: ask which one, never guess
+    if (resolution.choices) {
+      this.choiceFragment = { moves: resolution.choices, at: Date.now() };
+      this.pieceFragment = null;
+      this.squareFragment = null;
+      this.triggerFeedback(this.whichOneQuestion(resolution.choices), 'question', true);
+      return;
+    }
+
+    // The square was clear but not the piece: ask which piece (naming the ones that can go), and let a one-word answer finish the move
     const askPiece = resolution.error?.match(/^Which piece to ([A-H][1-8])\?/);
     if (askPiece) {
-      this.squareFragment = { square: askPiece[1].toLowerCase(), at: Date.now() };
+      const square = askPiece[1].toLowerCase();
+      this.squareFragment = { square, at: Date.now() };
       this.pieceFragment = null;
-      this.triggerFeedback(`Which piece to ${askPiece[1]}?`, 'info', true);
+      const names = [...new Set(legalMoves.filter((m: any) => m.to === square).map((m: any) => this.pieceFullName(m.piece).toLowerCase()))];
+      const options = names.length >= 2 && names.length <= 3 ? `: the ${this.orList(names)}` : '';
+      this.triggerFeedback(`Which piece to ${askPiece[1]}${options}?`, 'question', true);
+      return;
+    }
+
+    // A piece was named but it cannot go to the square heard: say where it can go, and let the answer finish the move
+    if (resolution.badPiece && resolution.badTarget) {
+      soundEffects.playInvalidSound();
+      const name = this.pieceFullName(resolution.badPiece);
+      const targets = this.targetsFor(resolution.badPiece, legalMoves);
+      const dest = resolution.badTarget.toUpperCase();
+      if (!targets.length) {
+        const why = this.isInCheck() ? ' You are in check: move your king out, block the check, or capture the attacker.' : '';
+        this.triggerFeedback(`Your ${name.toLowerCase()} can't move right now.${why}`, 'warning', true);
+        return;
+      }
+      this.pieceFragment = { text: name, at: Date.now() };
+      this.squareFragment = null;
+      const lead = this.isInCheck() ? `You are in check, so the ${name.toLowerCase()} can't go to ${dest}.` : `${name} can't go to ${dest}.`;
+      this.triggerFeedback(`${lead} ${this.whichSquareQuestion(name, targets)}`, 'question', true);
       return;
     }
 
@@ -682,17 +722,100 @@ class VoiceControlService {
       return;
     }
 
-    // The piece was clear but not the square: ask for the square, and let the answer finish the move
+    // The piece was clear but not the square: ask for the square (naming where it can go), and let the answer finish the move
     const parsed = this.extractMoveTokens(this.normalizeChessSpeech(rawText));
     if (parsed.piece && !parsed.targetSquare && !parsed.fromSquare) {
-      this.pieceFragment = { text: this.pieceFullName(parsed.piece), at: Date.now() };
+      const name = this.pieceFullName(parsed.piece);
+      const targets = this.targetsFor(parsed.piece, legalMoves);
+      if (!targets.length) {
+        this.triggerFeedback(`Your ${name.toLowerCase()} can't move right now.`, 'warning', true);
+        return;
+      }
+      this.pieceFragment = { text: name, at: Date.now() };
       this.squareFragment = null;
-      this.triggerFeedback(`${this.pieceFullName(parsed.piece)} to which square?`, 'info', true);
+      this.triggerFeedback(this.whichSquareQuestion(name, targets), 'question', true);
+      return;
+    }
+
+    // Something chess-like was said but not caught: ask again rather than stay silent. Plain conversation is left alone.
+    if (/\b(pawn|knight|bishop|rook|queen|king|takes|castle)\b|\b[a-h][1-8]\b/.test(this.normalizeChessSpeech(rawText))) {
+      this.triggerFeedback("Sorry, I didn't catch that. Which piece, and to which square?", 'question', true);
       return;
     }
 
     // Fallback: Show helpful guidance
     this.triggerFeedback(`Heard: "${rawText}". Say e.g. "Bishop to C4" or "Queen to F4"`, 'info', false);
+  }
+
+  /** Plays a move the player asked for, and closes any question that was waiting. */
+  private playResolvedMove(move: any, description: string, spokenKey: string) {
+    this.lastExecutedMoveTime = Date.now();
+    this.lastExecutedMoveSan = move.san;
+    this.lastExecutedText = spokenKey;
+    this.moveInFlightUntil = Date.now() + MOVE_IN_FLIGHT_MS;
+    this.pendingCommand = null;
+    this.pieceFragment = null;   // a half-heard command is finished once a move plays
+    this.squareFragment = null;
+    this.choiceFragment = null;
+    this.triggerFeedback(description, 'success', true);
+    this.onMoveCallback?.(move.from, move.to, move.san, description);
+  }
+
+  /**
+   * The answer to "Which knight: B1 or F3?": the square the piece stands on ("B1", "the one on B1", "from B1"),
+   * or just its file or rank ("B", "1") when that picks out one of them. Still legal in the current position.
+   */
+  private answerToChoice(phrases: string[], legalMoves: any[]): any | null {
+    const pending = this.choiceFragment;
+    if (!pending) return null;
+    const stillLegal = (m: any) => legalMoves.find((l: any) => l.from === m.from && l.to === m.to) || null;
+    for (const phrase of phrases) {
+      if (!phrase) continue;
+      const text = this.normalizeChessSpeech(phrase);
+      for (const sq of text.match(/\b[a-h][1-8]\b/g) || []) {
+        const hit = pending.moves.find((m: any) => m.from === sq);
+        if (hit) return stillLegal(hit);
+      }
+      for (const token of text.split(' ')) {
+        if (!/^([a-h]|[1-8])$/.test(token)) continue;
+        const hits = pending.moves.filter((m: any) => m.from.includes(token));
+        if (hits.length === 1) return stillLegal(hits[0]);
+      }
+    }
+    return null;
+  }
+
+  /** "Which knight goes to D2: the one on B1, or the one on F3?" */
+  private whichOneQuestion(choices: any[]): string {
+    const piece = this.pieceFullName(choices[0].piece).toLowerCase();
+    const to = choices[0].to.toUpperCase();
+    const from = choices.map((m: any) => m.from.toUpperCase());
+    return from.length === 2
+      ? `Which ${piece} goes to ${to}: the one on ${from[0]}, or the one on ${from[1]}?`
+      : `Which ${piece} goes to ${to}: the one on ${this.orList(from)}?`;
+  }
+
+  /** "Knight to which square: F3 or H3?", naming the squares when there are only a few. */
+  private whichSquareQuestion(name: string, targets: string[]): string {
+    const up = targets.map((t) => t.toUpperCase());
+    return up.length <= 3 ? `${name} to which square: ${this.orList(up)}?` : `${name} to which square?`;
+  }
+
+  /** The squares a kind of piece can move to now. */
+  private targetsFor(piece: PieceSymbol, legalMoves: any[]): string[] {
+    return [...new Set(legalMoves.filter((m: any) => m.piece === piece).map((m: any) => m.to as string))];
+  }
+
+  /** "F3", "F3 or H3", "C4, D3 or E2" */
+  private orList(items: string[]): string {
+    return items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} or ${items[items.length - 1]}`;
+  }
+
+  /** One move, or the pieces the player must choose between when several of the same kind can make it. */
+  private oneOrChoice(moves: any[]): { move: any | null; description: string; choices?: any[] } {
+    const byFrom = moves.filter((m: any, i: number) => moves.findIndex((o: any) => o.from === m.from) === i);
+    if (byFrom.length === 1) return { move: byFrom[0], description: this.formatMoveDescription(byFrom[0]) };
+    return { move: null, description: '', choices: byFrom };
   }
 
   /**
@@ -725,7 +848,7 @@ class VoiceControlService {
   public tryResolveMoveFromCandidates(
     inputPhrases: string[],
     legalMoves: any[]
-  ): { move: any | null; description: string; error?: string } {
+  ): { move: any | null; description: string; error?: string; choices?: any[]; badPiece?: PieceSymbol; badTarget?: Square } {
     // Generate all acoustic variants for all phrases
     const allNormalizedVariants: string[] = [];
 
@@ -811,19 +934,11 @@ class VoiceControlService {
 
         if (matches.length > 1) {
           if (parsed.disambiguator) {
-            const refined = matches.find((m: any) => m.from.includes(parsed.disambiguator!));
-            if (refined) {
-              return { move: refined, description: this.formatMoveDescription(refined) };
-            }
+            const refined = matches.filter((m: any) => m.from.includes(parsed.disambiguator!));
+            if (refined.length) return this.oneOrChoice(refined);
           }
-          if (text.includes('take') || text.includes('capture')) {
-            const cap = matches.find((m: any) => m.captured || m.flags.includes('c') || m.flags.includes('e'));
-            if (cap) {
-              return { move: cap, description: this.formatMoveDescription(cap) };
-            }
-          }
-          // Default to first match
-          return { move: matches[0], description: this.formatMoveDescription(matches[0]) };
+          // Two of the same piece can go there: ask which one rather than pick one
+          return this.oneOrChoice(matches);
         }
       }
     }
@@ -861,34 +976,26 @@ class VoiceControlService {
 
       // Sub-case 4A: Spoken text has Bishop acoustic marker -> find Bishop move to target!
       if (hasBishopAcoustics) {
-        const bishopMove = nonPawnMovesToTarget.find((m: any) => m.piece === 'b');
-        if (bishopMove) {
-          return { move: bishopMove, description: this.formatMoveDescription(bishopMove) };
-        }
+        const bishopMoves = nonPawnMovesToTarget.filter((m: any) => m.piece === 'b');
+        if (bishopMoves.length) return this.oneOrChoice(bishopMoves);
       }
 
       // Sub-case 4B: Spoken text has Queen acoustic marker -> find Queen move to target!
       if (hasQueenAcoustics) {
-        const queenMove = nonPawnMovesToTarget.find((m: any) => m.piece === 'q');
-        if (queenMove) {
-          return { move: queenMove, description: this.formatMoveDescription(queenMove) };
-        }
+        const queenMoves = nonPawnMovesToTarget.filter((m: any) => m.piece === 'q');
+        if (queenMoves.length) return this.oneOrChoice(queenMoves);
       }
 
       // Sub-case 4C: Spoken text has Knight acoustic marker -> find Knight move to target!
       if (hasKnightAcoustics) {
-        const knightMove = nonPawnMovesToTarget.find((m: any) => m.piece === 'n');
-        if (knightMove) {
-          return { move: knightMove, description: this.formatMoveDescription(knightMove) };
-        }
+        const knightMoves = nonPawnMovesToTarget.filter((m: any) => m.piece === 'n');
+        if (knightMoves.length) return this.oneOrChoice(knightMoves);
       }
 
       // Sub-case 4D: Spoken text has Rook acoustic marker -> find Rook move to target!
       if (hasRookAcoustics) {
-        const rookMove = nonPawnMovesToTarget.find((m: any) => m.piece === 'r');
-        if (rookMove) {
-          return { move: rookMove, description: this.formatMoveDescription(rookMove) };
-        }
+        const rookMoves = nonPawnMovesToTarget.filter((m: any) => m.piece === 'r');
+        if (rookMoves.length) return this.oneOrChoice(rookMoves);
       }
 
       // Sub-case 4E: The recognized text said "pawn to [target]" (or piece is 'p'), BUT NO PAWN CAN MOVE THERE!
@@ -914,6 +1021,8 @@ class VoiceControlService {
         move: null,
         description: '',
         error: `${pieceName} cannot move to ${dest}. Move is illegal or path is blocked.`,
+        badPiece: explicitPieceAttempted,
+        badTarget: explicitTargetAttempted,
       };
     }
 
@@ -921,15 +1030,15 @@ class VoiceControlService {
     // PASS 4B: Explicit Pawn + Target Square (e.g. "pawn to e4", "pawn to d4")
     // (Only reached if no major/minor piece was attempted)
     // =========================================================================
+    let pawnTargetAttempted: Square | null = null;
     for (const text of allNormalizedVariants) {
       const parsed = this.extractMoveTokens(text);
       if (parsed.piece === 'p' && parsed.targetSquare) {
-        const pawnMatch = legalMoves.find(
+        pawnTargetAttempted = pawnTargetAttempted || parsed.targetSquare;
+        const pawnMatches = legalMoves.filter(
           (m: any) => m.piece === 'p' && m.to === parsed.targetSquare
         );
-        if (pawnMatch) {
-          return { move: pawnMatch, description: this.formatMoveDescription(pawnMatch) };
-        }
+        if (pawnMatches.length) return this.oneOrChoice(pawnMatches);   // two pawns that can take there: ask which
       }
     }
 
@@ -960,6 +1069,7 @@ class VoiceControlService {
     // Any other word in front ("9 to F3", "Nike to F3", "I to F3") is most likely a misheard piece name,
     // so ask which piece rather than moving a pawn the player never meant.
     let unclearTarget: Square | null = null;
+    let unreachableTarget: Square | null = null;   // a square on its own that none of the player's pieces can reach
     if (!anyMajorOrMinorPieceNamed) {
       for (const text of allNormalizedVariants) {
         const parsed = this.extractMoveTokens(text);
@@ -976,10 +1086,11 @@ class VoiceControlService {
           // A square on its own plays a move only when exactly one move goes there ("e4" in the opening).
           // If a pawn and a piece could both go there, a dropped piece name is likely: ask instead of guessing.
           const anyMatches = legalMoves.filter((m: any) => m.to === parsed.targetSquare);
-          if (anyMatches.length === 1) {
-            return { move: anyMatches[0], description: this.formatMoveDescription(anyMatches[0]) };
+          if (anyMatches.length && anyMatches.every((m: any) => m.piece === anyMatches[0].piece)) {
+            return this.oneOrChoice(anyMatches);   // one kind of piece: play it, or ask which of them
           }
           if (anyMatches.length > 1) unclearTarget = parsed.targetSquare;
+          if (!anyMatches.length) unreachableTarget = unreachableTarget || parsed.targetSquare;
         }
       }
     }
@@ -987,6 +1098,15 @@ class VoiceControlService {
     if (unclearTarget) {
       const sq = unclearTarget.toUpperCase();
       return { move: null, description: '', error: `Which piece to ${sq}? Say it with the piece, like "Knight to ${sq}".` };
+    }
+
+    // A pawn was named for a square no pawn can reach (and nothing else could either)
+    if (pawnTargetAttempted) {
+      return { move: null, description: '', error: `Pawn cannot move to ${pawnTargetAttempted.toUpperCase()}.`, badPiece: 'p', badTarget: pawnTargetAttempted };
+    }
+
+    if (unreachableTarget) {
+      return { move: null, description: '', error: `None of your pieces can move to ${unreachableTarget.toUpperCase()}. Which piece, and to which square?` };
     }
 
     return { move: null, description: '' };
@@ -1237,7 +1357,7 @@ class VoiceControlService {
 
   private triggerFeedback(
     message: string,
-    type: 'success' | 'warning' | 'error' | 'info',
+    type: VoiceFeedbackType,
     speak = false
   ) {
     this.onFeedbackCallback?.(message, type);
@@ -1249,10 +1369,14 @@ class VoiceControlService {
         this.isSelfSpeaking = true;
 
         if (this.selfSpeakSafetyTimer) clearTimeout(this.selfSpeakSafetyTimer);
-        // Safety un-mute after 1.2s max so mic is never locked
+        // Until the herald has finished (and its last words have reached the mic), what sounds like its own words is
+        // ignored, so the end of a question is never taken as the answer. A safety limit, sized to the message,
+        // keeps the mic from staying deaf if the browser never reports the end.
+        const token = ++this.speakToken;
+        const done = () => setTimeout(() => { if (this.speakToken === token) this.isSelfSpeaking = false; }, 350);
         this.selfSpeakSafetyTimer = setTimeout(() => {
           this.isSelfSpeaking = false;
-        }, 1200);
+        }, Math.min(9000, 1500 + message.length * 75));
 
         setTimeout(() => {
           try {
@@ -1260,12 +1384,8 @@ class VoiceControlService {
             utterance.rate = 1.2; // Slightly faster, crisp vocal feedback
             utterance.pitch = 1.0;
             utterance.volume = 0.9;
-            utterance.onend = () => {
-              this.isSelfSpeaking = false;
-            };
-            utterance.onerror = () => {
-              this.isSelfSpeaking = false;
-            };
+            utterance.onend = done;
+            utterance.onerror = done;
             window.speechSynthesis.speak(utterance);
           } catch {
             this.isSelfSpeaking = false;

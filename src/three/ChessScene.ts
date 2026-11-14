@@ -286,12 +286,37 @@ export class ChessSceneManager {
     if (!main || !main.isMesh || !parts.geometry) return;
     main.geometry = parts.geometry;
     main.material = parts.material;
+    if (color === 'b') this.shadeDarkPiece(parts.material);
     main.scale.setScalar(parts.scale);
     const felt = piece.children[1] as THREE.Mesh | undefined;
     if (felt) felt.visible = false;   // the study piece has its own baize underneath
     if (piece.userData.square) {
       piece.rotation.y = this.getPieceDefaultRotationY(type, color, piece.userData.square as Square);
     }
+  }
+
+  /**
+   * The study's black pieces are jet black, and from White's chair they read well: the lamp and the window light them
+   * from behind. From Black's chair the player looks down on them close up with those lights at their back, and jet
+   * black turns into flat silhouettes, so there they take a deep charcoal that shows their form.
+   */
+  private static readonly DARK_PIECE_FROM_BLACK = 0x26262a;
+
+  private shadeDarkPiece(mat: THREE.Material) {
+    const m = mat as THREE.MeshStandardMaterial;
+    if (!m.isMeshStandardMaterial) return;
+    if (m.userData.studyColor === undefined) m.userData.studyColor = m.color.getHex();
+    m.color.setHex(this.studySide === 'b' ? ChessSceneManager.DARK_PIECE_FROM_BLACK : m.userData.studyColor);
+  }
+
+  private shadeDarkPieces() {
+    const update = (piece: PieceMeshObject) => {
+      const main = piece.children[0] as THREE.Mesh | undefined;
+      if (piece.userData.color === 'b' && main?.isMesh) this.shadeDarkPiece(main.material as THREE.Material);
+    };
+    this.pieceObjects.forEach(update);
+    this.capturedMeshes.w.forEach(update);
+    this.capturedMeshes.b.forEach(update);
   }
 
   /** The soft drop-shadow sprite is only a hint here: the study casts real shadows. */
@@ -2158,7 +2183,10 @@ export class ChessSceneManager {
     const nextTargetLookAt = new THREE.Vector3(0, 0, 0);
 
     this.currentPreset = preset;
-    if (preset === 'white' || preset === 'black') this.studySide = preset === 'white' ? 'w' : 'b';
+    if (preset === 'white' || preset === 'black') {
+      this.studySide = preset === 'white' ? 'w' : 'b';
+      this.shadeDarkPieces();
+    }
     if (this.study.ownsCamera) return;   // still on the landing page or in the book; the study hands over later
 
     switch (preset) {

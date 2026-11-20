@@ -1,8 +1,6 @@
 import { CommanderPortrait } from './FlowingPaper';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  Maximize,
-  Minimize,
   RotateCcw,
   RotateCw,
   Swords,
@@ -12,6 +10,7 @@ import {
 import type { GameMode, BotDifficulty, CameraPreset, CapturedPieces, PieceColor, ControlMode, MoveRecord } from '../types';
 import { ChessIoLogo } from './ChessIoLogo';
 import { CommanderProfileModal } from './CommanderProfileModal';
+import { FullscreenButton } from './FullscreenButton';
 
 interface GameControlsProps {
   gameMode: GameMode;
@@ -84,19 +83,6 @@ export const GameControls: React.FC<GameControlsProps> = ({
   onOpenProfile,
 }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(() => !!document.fullscreenElement);
-
-  // Esc or the browser's own controls can leave full screen too, so follow the document
-  useEffect(() => {
-    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', onChange);
-    return () => document.removeEventListener('fullscreenchange', onChange);
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    else document.documentElement.requestFullscreen?.().catch(() => {});
-  };
 
   // Derive latest real-time move information
   const latestMove = moves.length > 0 ? moves[moves.length - 1] : null;
@@ -216,17 +202,7 @@ export const GameControls: React.FC<GameControlsProps> = ({
           </button>
 
           {/* Full Screen */}
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="hud-paper w-10 h-10 rounded-full flex items-center justify-center"
-            title={isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
-            aria-label={isFullscreen ? 'Exit full screen' : 'Enter full screen'}
-          >
-            {isFullscreen
-              ? <Minimize className="w-[18px] h-[18px] stroke-[1.8] text-current" />
-              : <Maximize className="w-[18px] h-[18px] stroke-[1.8] text-current" />}
-          </button>
+          <FullscreenButton />
 
           {/* Profile Button in paper style (no black box) */}
           <button

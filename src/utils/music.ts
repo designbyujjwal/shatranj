@@ -43,6 +43,7 @@ class RoyalBattleMusic {
   private unlockCleanup: (() => void) | null = null;
   private sounding = false;  // play() has resolved: the track is really playing (paused turns false before that)
   private fadeInEnds = 0;   // while the first fade-in runs, other ramps must not cut it short
+  private held = false;     // the intro plays its own score: the ambient bed waits until it ends
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -200,7 +201,7 @@ class RoyalBattleMusic {
         return;
       }
 
-      if (this.isMuted || this.userVolume === 0 || this.isOnBoard) return;
+      if (this.isMuted || this.userVolume === 0 || this.isOnBoard || this.held) return;
 
       if (this.audio && (this.audio.paused || this.audio.volume === 0)) {
         this.audio.muted = false;
@@ -234,7 +235,7 @@ class RoyalBattleMusic {
 
   private tryPlay() {
     if (!this.audio) return;
-    if (this.isMuted || this.userVolume === 0 || this.isOnBoard) return;
+    if (this.isMuted || this.userVolume === 0 || this.isOnBoard || this.held) return;
 
     this.audio.muted = false;
     const wasSilent = !this.sounding;
@@ -299,6 +300,13 @@ class RoyalBattleMusic {
     };
 
     this.animationFrameId = requestAnimationFrame(step);
+  }
+
+  /** Hold the ambient bed back while the intro's own score plays; releasing it starts the bed with its slow fade-in */
+  public holdForIntro(hold: boolean) {
+    this.held = hold;
+    if (hold && this.audio && !this.audio.paused) { this.audio.pause(); this.audio.volume = 0; }   // autoplay may already have started it
+    if (!hold) this.tryPlay();
   }
 
   /**

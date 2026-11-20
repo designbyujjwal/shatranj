@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { assetUrl } from '../utils/assetUrl';
 import { royalBattleMusic } from '../utils/music';
+import { createIntroScore } from '../utils/introScore';
+import { IntroSword3D, SETTLED_MS, CLOSE_MS } from './IntroSword3D';
 
 /**
  * The opening title: SHATRANJ lights up letter by letter on black, THE ROYAL GAME is written in,
@@ -21,18 +23,19 @@ const LETTERS: Box[] = [
   [662, 110, 911, H], [911, 110, 1129, H], [1129, 110, 1345, H], [1345, 110, W, H],
 ];
 const TAGLINE: Box = [0, 60, 440, 110];
-const GLINT: Box = [360, 0, 590, 67];          // the light streak running into the hilt
-const SWORD: Box = [545, 0, 740, H];
-// Inside the sword's box: the cross-guard and pommel on top, the blade down through the gap
-const SWORD_SHAPE = [[590, 0], [740, 0], [740, 98], [662, 98], [662, H], [618, H], [618, 98], [545, 98], [545, 67], [590, 67]]
-  .map(([x, y]) => `${((x - SWORD[0]) / (SWORD[2] - SWORD[0])) * 100}% ${(y / H) * 100}%`).join(', ');
+// The sheen lights the logo's shape, minus the old 2D light streak along the top that the 3D sword replaced
+const SHEEN_MASK = `url(${LOGO}), linear-gradient(transparent ${(67 / H) * 100}%, #000 ${(67 / H) * 100}%)`;
 const HILT = { x: (640 / W) * 100, y: (80 / H) * 100 };
 
-// Timeline (ms)
-const LETTER_START = 250, LETTER_STEP = 120;
-const SWORD_START = 1350, SWORD_FALL = 650;
-const IMPACT = SWORD_START + SWORD_FALL * 0.78;
-const HOLD_UNTIL = 3300, EXIT = 700, GIVE_UP = 12000;
+// Timeline (ms from the click). The sword's shot runs first (see IntroSword3D); the letters come out from behind it as it settles
+const LETTER_START = SETTLED_MS - 200, LETTER_STEP = 280;
+const IMPACT = SETTLED_MS;                     // the sword locks into the T
+const HOLD_UNTIL = SETTLED_MS + 6000, EXIT = 700, GIVE_UP = SETTLED_MS + 9000;
+// Letters nearest the sword come first, each sliding out from behind it
+const LETTER_IN = LETTERS.map(([l, , r], i) => {
+  const centre = (l + r) / 2, from = ((640 - centre) * .38) / (r - l) * 100;
+  return { i, from, dist: Math.abs(640 - centre) };
+}).sort((a, b) => a.dist - b.dist).reduce<Record<number, { from: number; order: number }>>((m, x, order) => ({ ...m, [x.i]: { from: x.from, order } }), {});
 
 const pct = (n: number, of: number) => `${(n / of) * 100}%`;
 
@@ -49,13 +52,22 @@ const Crop: React.FC<{ box: Box; className?: string; style?: React.CSSProperties
 
 const isInvite = () => /[?&]room=/.test(window.location.search);
 
-export const IntroSplash: React.FC = () => {
+export const IntroSplash: React.FC<{ hold?: boolean }> = ({ hold = false }) => {   // hold: the lab keeps the last frame
   const [show] = useState(() => !isInvite())   // every load, except an invite link;
   const [ready, setReady] = useState(false);     // the logo image has decoded: start the clock
   const [entered, setEntered] = useState(false); // the visitor clicked in: browsers allow sound only after that
   const [leaving, setLeaving] = useState(false);
   const [gone, setGone] = useState(!show);
   const leaveRef = useRef<() => void>(() => {});
+  const logoRef = useRef<HTMLDivElement>(null);
+  const scoreRef = useRef<ReturnType<typeof createIntroScore>>(null);
+
+  // The intro has its own score: the ambient bed waits until the title has gone
+  useEffect(() => {
+    if (!show) return;
+    royalBattleMusic.holdForIntro(true);
+    return () => { scoreRef.current?.stop(600); scoreRef.current = null; };
+  }, [show]);
 
   useEffect(() => {
     if (!show) return;
@@ -71,12 +83,13 @@ export const IntroSplash: React.FC = () => {
     return () => { alive = false; window.clearTimeout(backup); };
   }, [show]);
 
-  // The gate: one click or key starts the title and the music together
+  // The gate: one click or key starts the title and its score together (browsers allow sound only after it)
   const enter = () => {
     if (entered) return;
     setEntered(true);
-    royalBattleMusic.start();
+    if (!royalBattleMusic.getState().isMuted) scoreRef.current = createIntroScore();
   };
+  const startScore = () => scoreRef.current?.start({ close: CLOSE_MS / 1000, settled: SETTLED_MS / 1000 });
   useEffect(() => {
     if (!show || entered) return;
     const onKey = (e: KeyboardEvent) => { if (!e.repeat) enter(); };
@@ -92,6 +105,11 @@ export const IntroSplash: React.FC = () => {
       if (done) return;
       done = true;
       setLeaving(true);
+      // The score fades as the title does, and the ambient bed creeps in under the landing page
+      scoreRef.current?.stop(1500);
+      scoreRef.current = null;
+      royalBattleMusic.holdForIntro(false);
+      royalBattleMusic.start();
       window.setTimeout(() => setGone(true), EXIT);
     };
     leaveRef.current = leave;
@@ -99,9 +117,9 @@ export const IntroSplash: React.FC = () => {
     const roomReady = () => { const v = document.getElementById('veil'); return !v || v.classList.contains('gone'); };
     const timer = window.setInterval(() => {
       const t = performance.now() - started;
-      if ((t >= HOLD_UNTIL && roomReady()) || t >= GIVE_UP) leave();
+      if (!hold && ((t >= HOLD_UNTIL && roomReady()) || t >= GIVE_UP)) leave();
     }, 100);
-    const skip = () => leave();
+    const skip = () => { if (!hold) leave(); };
     window.addEventListener('pointerdown', skip);
     window.addEventListener('keydown', skip);
     return () => {
@@ -114,7 +132,7 @@ export const IntroSplash: React.FC = () => {
   if (gone) return null;
 
   return (
-    <div className={`intro-splash ${entered ? 'is-entered' : ''} ${ready && entered ? 'is-playing' : ''} ${leaving ? 'is-leaving' : ''}`} aria-hidden="true" onClick={() => (entered ? leaveRef.current() : enter())}>
+    <div className={`intro-splash ${entered ? 'is-entered' : ''} ${ready && entered ? 'is-playing' : ''} ${leaving ? 'is-leaving' : ''}`} aria-hidden="true" onClick={() => (entered ? (!hold && leaveRef.current()) : enter())}>
       <div className="intro-gate">
         <span className="intro-gate-rule" />
         <span className="intro-gate-label">Click to enter</span>
@@ -123,19 +141,19 @@ export const IntroSplash: React.FC = () => {
       </div>
       <div className="intro-haze" />
       <div className="intro-stage">
-        <div className="intro-logo">
-          <div className="intro-letters" style={{ animationDelay: `${IMPACT}ms` }}>
+        <div className="intro-logo" ref={logoRef}>
+          <div className="intro-letters">
             {LETTERS.map((box, i) => (
-              <Crop key={i} box={box} className="intro-letter" style={{ animationDelay: `${LETTER_START + i * LETTER_STEP}ms` }} />
+              <Crop key={i} box={box} className="intro-letter"
+                style={{ animationDelay: `${LETTER_START + LETTER_IN[i].order * LETTER_STEP}ms`, ['--from' as string]: `${LETTER_IN[i].from}%` }} />
             ))}
-            <Crop box={TAGLINE} className="intro-tagline" style={{ animationDelay: '1050ms' }} />
+            <Crop box={TAGLINE} className="intro-tagline" style={{ animationDelay: `${LETTER_START + 2300}ms` }} />
           </div>
-          <Crop box={GLINT} className="intro-glint" style={{ animationDelay: `${IMPACT + 40}ms` }} />
-          <Crop box={SWORD} className="intro-sword" style={{ clipPath: `polygon(${SWORD_SHAPE})`, animationDelay: `${SWORD_START}ms`, animationDuration: `${SWORD_FALL}ms` }} />
           <div className="intro-flash" style={{ left: `${HILT.x}%`, top: `${HILT.y}%`, animationDelay: `${IMPACT}ms` }} />
-          <div className="intro-sheen" style={{ maskImage: `url(${LOGO})`, WebkitMaskImage: `url(${LOGO})`, animationDelay: `${IMPACT + 250}ms` }} />
+          <div className="intro-sheen" style={{ maskImage: SHEEN_MASK, WebkitMaskImage: SHEEN_MASK, maskComposite: 'intersect', WebkitMaskComposite: 'source-in', animationDelay: `${LETTER_START + 3800}ms` }} />
         </div>
       </div>
+      <IntroSword3D className="intro-sword3d" playing={ready && entered} logoRef={logoRef} onStart={startScore} />
     </div>
   );
 };

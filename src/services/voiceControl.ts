@@ -1393,6 +1393,10 @@ class VoiceControlService {
     // 5. Handle speech recognition transcribing "to" as number 2
     // e.g. "bishop 2 c4" -> "bishop to c4", "queen 2 f4" -> "queen to f4"
     s = s.replace(/\b2\s+([a-h])/g, 'to $1');
+    // Run together: "rook 2A1 2E1", "rook A12E1" ("A1 to E1"); and "E1" heard as "even"
+    s = s.replace(/\b([a-h][1-8])2([a-h][1-8])\b/g, '$1 to $2');
+    s = s.replace(/\b2([a-h][1-8])\b/g, 'to $1');
+    s = s.replace(/\b(to|from)\s+even\b/g, '$1 e1');
     s = s.replace(/\b2\s+(delta|david|dee|alpha|bravo|charlie|echo|foxtrot|golf|hotel)/g, 'to $1');
 
     // 6. Handle common speech recognition mishearing: "to the 4" -> "to d4"

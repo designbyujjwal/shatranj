@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { assetUrl } from '../utils/assetUrl';
+import { royalBattleMusic } from '../utils/music';
 
 /**
  * The opening title: SHATRANJ lights up letter by letter on black, THE ROYAL GAME is written in,
@@ -53,13 +54,13 @@ const seenThisSession = () => { try { return sessionStorage.getItem(SEEN_KEY) ==
 export const IntroSplash: React.FC = () => {
   const [show] = useState(() => !isInvite() && !seenThisSession());
   const [ready, setReady] = useState(false);     // the logo image has decoded: start the clock
+  const [entered, setEntered] = useState(false); // the visitor clicked in: browsers allow sound only after that
   const [leaving, setLeaving] = useState(false);
   const [gone, setGone] = useState(!show);
   const leaveRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (!show) return;
-    try { sessionStorage.setItem(SEEN_KEY, '1'); } catch { /* private mode */ }
     let alive = true;
     const img = new Image();
     img.src = LOGO;
@@ -67,8 +68,22 @@ export const IntroSplash: React.FC = () => {
     return () => { alive = false; };
   }, [show]);
 
+  // The gate: one click or key starts the title and the music together
+  const enter = () => {
+    if (entered) return;
+    setEntered(true);
+    try { sessionStorage.setItem(SEEN_KEY, '1'); } catch { /* private mode */ }
+    royalBattleMusic.start();
+  };
   useEffect(() => {
-    if (!show || !ready) return;
+    if (!show || entered) return;
+    const onKey = (e: KeyboardEvent) => { if (!e.repeat) enter(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  useEffect(() => {
+    if (!show || !ready || !entered) return;
     const started = performance.now();
     let done = false;
     const leave = () => {
@@ -92,12 +107,18 @@ export const IntroSplash: React.FC = () => {
       window.removeEventListener('pointerdown', skip);
       window.removeEventListener('keydown', skip);
     };
-  }, [show, ready]);
+  }, [show, ready, entered]);
 
   if (gone) return null;
 
   return (
-    <div className={`intro-splash ${ready ? 'is-playing' : ''} ${leaving ? 'is-leaving' : ''}`} aria-hidden="true" onClick={() => leaveRef.current()}>
+    <div className={`intro-splash ${entered ? 'is-entered' : ''} ${ready && entered ? 'is-playing' : ''} ${leaving ? 'is-leaving' : ''}`} aria-hidden="true" onClick={() => (entered ? leaveRef.current() : enter())}>
+      <div className="intro-gate">
+        <span className="intro-gate-rule" />
+        <span className="intro-gate-label">Click to enter</span>
+        <span className="intro-gate-rule" />
+        <span className="intro-gate-note">Sound on</span>
+      </div>
       <div className="intro-haze" />
       <div className="intro-stage">
         <div className="intro-logo">

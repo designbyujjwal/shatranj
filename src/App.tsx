@@ -138,7 +138,8 @@ export default function App() {
   // The profile button opens the book on the desk; the board HUD steps aside while it is read
   const [profileBookOpen, setProfileBookOpen] = useState(false);
   const boardUiHidden = showOnboarding || profileBookOpen;
-  const isInBoardScene = !showOnboarding && !showControlModeModal && !showMatchSetupModal && !showCourierInvite;
+  // Music is silent only while a game is being played: the profile book read over the board brings it back
+  const isInBoardScene = !showOnboarding && !showControlModeModal && !showMatchSetupModal && !showCourierInvite && !profileBookOpen;
 
   useEffect(() => {
     return royalBattleMusic.subscribe((state) => {
@@ -149,6 +150,15 @@ export default function App() {
   useEffect(() => {
     royalBattleMusic.setInBoardScene(isInBoardScene);
   }, [isInBoardScene]);
+
+  // Join Battle opens the book: that click is the sure moment browsers allow sound, so the music starts there at the latest
+  useEffect(() => {
+    const onJoin = (e: MouseEvent) => {
+      if ((e.target as HTMLElement | null)?.closest('#join')) royalBattleMusic.start();
+    };
+    document.addEventListener('click', onJoin, true);
+    return () => document.removeEventListener('click', onJoin, true);
+  }, []);
 
   const [moves, setMoves] = useState<MoveRecord[]>([]);
   const [capturedPieces, setCapturedPieces] = useState<CapturedPieces>({ w: [], b: [] });

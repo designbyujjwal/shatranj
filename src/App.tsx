@@ -20,6 +20,7 @@ import { HandCameraPIP } from './components/HandCameraPIP';
 import { MoveHistory } from './components/MoveHistory';
 import { GameControls } from './components/GameControls';
 import { FullscreenButton } from './components/FullscreenButton';
+import { IntroSplash } from './components/IntroSplash';
 import { SpatialPointer } from './components/SpatialPointer';
 import { PromotionModal } from './components/PromotionModal';
 import { GameOverModal } from './components/GameOverModal';
@@ -1556,6 +1557,9 @@ export default function App() {
 
   return (
     <div id="spatial-chess-app" className="relative w-screen h-screen bg-[#050403] overflow-hidden select-none">
+      {/* Opening title over the study while it loads */}
+      <IntroSplash />
+
       {/* Three.js 3D WebGL Canvas Viewport (the study: landing page, onboarding book and the board) */}
       <div ref={threeContainerRef} className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing z-10" />
 

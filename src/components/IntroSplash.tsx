@@ -12,7 +12,6 @@ import { royalBattleMusic } from '../utils/music';
 
 const LOGO = assetUrl('shatranj-logo-full.png');
 const W = 1476, H = 433;
-const SEEN_KEY = 'shatranj_intro_seen';
 
 type Box = [left: number, top: number, right: number, bottom: number];
 
@@ -49,10 +48,9 @@ const Crop: React.FC<{ box: Box; className?: string; style?: React.CSSProperties
 };
 
 const isInvite = () => /[?&]room=/.test(window.location.search);
-const seenThisSession = () => { try { return sessionStorage.getItem(SEEN_KEY) === '1'; } catch { return false; } };
 
 export const IntroSplash: React.FC = () => {
-  const [show] = useState(() => !isInvite() && !seenThisSession());
+  const [show] = useState(() => !isInvite())   // every load, except an invite link;
   const [ready, setReady] = useState(false);     // the logo image has decoded: start the clock
   const [entered, setEntered] = useState(false); // the visitor clicked in: browsers allow sound only after that
   const [leaving, setLeaving] = useState(false);
@@ -77,7 +75,6 @@ export const IntroSplash: React.FC = () => {
   const enter = () => {
     if (entered) return;
     setEntered(true);
-    try { sessionStorage.setItem(SEEN_KEY, '1'); } catch { /* private mode */ }
     royalBattleMusic.start();
   };
   useEffect(() => {

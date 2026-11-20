@@ -63,9 +63,14 @@ export const IntroSplash: React.FC = () => {
     if (!show) return;
     let alive = true;
     const img = new Image();
+    // Start once the logo has loaded. decode() alone can hang in Chrome (the title stayed black), so a timer backs it up
+    const go = () => { if (alive) setReady(true); };
+    img.onload = go;
+    img.onerror = go;
     img.src = LOGO;
-    img.decode().catch(() => {}).then(() => { if (alive) setReady(true); });
-    return () => { alive = false; };
+    if (img.complete) go();
+    const backup = window.setTimeout(go, 2500);
+    return () => { alive = false; window.clearTimeout(backup); };
   }, [show]);
 
   // The gate: one click or key starts the title and the music together

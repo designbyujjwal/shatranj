@@ -1458,6 +1458,9 @@ export function createStudyWorld(opts: StudyOptions) {
   let mode = 'landing', tween = null;
   const camTarget = new THREE.Vector3();
   const mouse = new THREE.Vector2();
+  // Landing only: the camera orbits a little around what it looks at, following the cursor (eased, a couple of degrees)
+  const ORBIT_YAW = .045, ORBIT_PITCH = .022;   // radians at the window's edge
+  const orbit = new THREE.Vector2(), orbitRest = new THREE.Vector2(), orbitOff = new THREE.Vector3();
   addEventListener('pointermove', (e) => { mouse.set(e.clientX / innerWidth - .5, e.clientY / innerHeight - .5); });
   function viewFor(m) {
     if (m === 'book') {   // reading view: both pages edge to edge; the title and button float over the book
@@ -1843,7 +1846,11 @@ export function createStudyWorld(opts: StudyOptions) {
         if (tween.t >= 1) { tween = null; if (mode === 'game') handCameraToGame(); }
       } else if (mode !== 'game') {
         const v = viewFor(mode);
-        camTarget.lerp(v.target, .05); camPos.lerp(v.pos, .05);
+        // Cursor orbit on the landing view: a couple of degrees around what the camera looks at, eased; centred again elsewhere
+        orbit.lerp(mode === 'landing' && !bookOpen ? mouse : orbitRest, 1 - Math.exp(-dt * 2.2));
+        orbitOff.copy(v.pos).sub(v.target).applyAxisAngle(THREE.Object3D.DEFAULT_UP, orbit.x * 2 * ORBIT_YAW);
+        orbitOff.y -= orbitOff.length() * orbit.y * 2 * ORBIT_PITCH;
+        camTarget.lerp(v.target, .05); camPos.lerp(orbitOff.add(v.target), .05);
       }
       if (ownsCamera) {
         look.copy(camTarget);

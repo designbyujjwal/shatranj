@@ -132,16 +132,15 @@ export default function App() {
   const [gameMode, setGameMode] = useState<GameMode>('vs-bot');
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>(playerProfile.difficulty);
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>(playerProfile.side === 'b' ? 'black' : 'white');
-  const [isMuted, setIsMuted] = useState(true);   // background music is off by default
+  const [isMuted, setIsMuted] = useState(false);
 
-  // Royal Battle Background Music: muted across the whole game (landing page, book and board)
+  // Ambient music: very low under the landing page, the book and the invite; silent on the board
   // The profile button opens the book on the desk; the board HUD steps aside while it is read
   const [profileBookOpen, setProfileBookOpen] = useState(false);
   const boardUiHidden = showOnboarding || profileBookOpen;
   const isInBoardScene = !showOnboarding && !showControlModeModal && !showMatchSetupModal && !showCourierInvite;
 
   useEffect(() => {
-    royalBattleMusic.setMuted(true);
     return royalBattleMusic.subscribe((state) => {
       setIsMuted(state.isMuted);
     });

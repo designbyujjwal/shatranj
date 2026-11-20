@@ -10,7 +10,6 @@ import {
 import type { GameMode, BotDifficulty, CameraPreset, CapturedPieces, PieceColor, ControlMode, MoveRecord } from '../types';
 import { ChessIoLogo } from './ChessIoLogo';
 import { CommanderProfileModal } from './CommanderProfileModal';
-import { MusicVolumeSlider } from './MusicVolumeSlider';
 
 interface GameControlsProps {
   gameMode: GameMode;
@@ -200,9 +199,6 @@ export const GameControls: React.FC<GameControlsProps> = ({
           >
             <RotateCcw className="w-[18px] h-[18px] stroke-[1.8] text-current" />
           </button>
-
-          {/* Background Music Draggable Volume Control */}
-          <MusicVolumeSlider variant="paper" />
 
           {/* Profile Button in paper style (no black box) */}
           <button

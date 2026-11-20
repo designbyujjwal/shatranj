@@ -94,7 +94,7 @@ class RoyalBattleMusic {
   }
 
   private get targetVolume(): number {
-    if (this.isMuted || this.userVolume === 0) return 0;
+    if (this.isMuted || this.userVolume === 0 || this.isOnBoard) return 0;   // no music on the board
     const base = this.isOnBoard ? BOARD_VOLUME : LANDING_VOLUME;
     // Scale calibrated base volume by user volume slider (0.8 = 1.0x calibrated level)
     const scaled = base * (this.userVolume / 0.8);
@@ -188,7 +188,7 @@ class RoyalBattleMusic {
         return;
       }
 
-      if (this.isMuted || this.userVolume === 0) return;
+      if (this.isMuted || this.userVolume === 0 || this.isOnBoard) return;
 
       if (this.audio && (this.audio.paused || this.audio.volume === 0)) {
         this.audio.muted = false;
@@ -221,7 +221,7 @@ class RoyalBattleMusic {
 
   private tryPlay() {
     if (!this.audio) return;
-    if (this.isMuted || this.userVolume === 0) return;
+    if (this.isMuted || this.userVolume === 0 || this.isOnBoard) return;
 
     this.audio.muted = false;
     this.audio.volume = this.targetVolume;

@@ -84,6 +84,7 @@ class VoiceControlService {
   private pieceFragment: { text: string; at: number } | null = null;   // "Bishop" said on its own, waiting for its square
   private squareFragment: { square: string; at: number } | null = null; // asked "Which piece to F3?", waiting for the piece
   private choiceFragment: { moves: any[]; at: number } | null = null;   // asked "Which knight: B1 or F3?", waiting for one of them
+  private proposal: { move: any; at: number } | null = null;           // asked "Did you mean King to E2?", waiting for yes or no
   private speakToken = 0;
 
   constructor() {
@@ -530,6 +531,7 @@ class VoiceControlService {
     this.clearInterimTimer();
     this.interimCandidate = null;
     this.pendingCommand = null;
+    this.proposal = null;
     if (this.pendingTimer) {
       clearInterval(this.pendingTimer);
       this.pendingTimer = null;
@@ -588,6 +590,37 @@ class VoiceControlService {
     getLegalChessMoves: () => ReturnType<Chess['moves']> | null,
     spokenAlternatives: string[] = []
   ) {
+    // A yes or no to the question just asked ("Did you mean King to E2?")
+    const reply = this.hasOpenQuestion() ? this.yesOrNo(spokenText) : null;
+    if (reply) {
+      const proposal = this.proposal;
+      this.proposal = null;
+      if (reply.answer === 'yes') {
+        const legalMoves = getLegalChessMoves ? getLegalChessMoves() : null;
+        const move = proposal && legalMoves?.find((m: any) => m.from === proposal.move.from && m.to === proposal.move.to && m.promotion === proposal.move.promotion);
+        if (move) {
+          this.playResolvedMove(move, this.formatMoveDescription(move), spokenText.toLowerCase().trim());
+        } else if (!proposal) {
+          // "Yes" to a question that needs a square or a piece: ask it again
+          this.triggerFeedback(this.lastSpokenFeedback || 'Which piece, and to which square?', 'question', true);
+        } else {
+          this.triggerFeedback('That move is not possible any more. Say your move again.', 'warning', true);
+        }
+        return;
+      }
+      this.pieceFragment = null;
+      this.squareFragment = null;
+      this.choiceFragment = null;
+      // "No, knight to F3": the rest is the move they meant
+      if (reply.rest) {
+        this.processSpokenText(reply.rest, getLegalChessMoves);
+        return;
+      }
+      this.triggerFeedback('All right. Say your move again.', 'question', true);
+      return;
+    }
+    this.proposal = null;   // any new command replaces the move that was offered
+
     // "Bishop" … "to C4" can arrive as two results; join a square-only phrase to the piece just named
     const { text: rawText, alternatives: extraCandidates } = this.withPieceFragment(spokenText, spokenAlternatives);
     this.lastSpokenText = rawText;
@@ -686,9 +719,35 @@ class VoiceControlService {
     const askPiece = resolution.error?.match(/^Which piece to ([A-H][1-8])\?/);
     if (askPiece) {
       const square = askPiece[1].toLowerCase();
+      const movesTo = legalMoves.filter((m: any) => m.to === square);
+      const kinds = [...new Set(movesTo.map((m: any) => m.piece))];
+      if (!movesTo.length) {
+        this.askNothingReaches(askPiece[1], legalMoves);
+        return;
+      }
+      if (kinds.length === 1) {
+        const only = this.oneOrChoice(movesTo);
+        // Only one kind of piece can move at all (a lone king): the square is enough, play it
+        if (only.move && this.movableKinds(legalMoves).length === 1) {
+          this.playResolvedMove(only.move, only.description, cleanPrimary);
+          return;
+        }
+        // Only one move goes there: offer it, and a yes plays it
+        if (only.move) {
+          this.squareFragment = { square, at: Date.now() };
+          this.pieceFragment = null;
+          this.askToConfirm(only.move);
+          return;
+        }
+        this.choiceFragment = { moves: only.choices!, at: Date.now() };
+        this.pieceFragment = null;
+        this.squareFragment = null;
+        this.triggerFeedback(this.whichOneQuestion(only.choices!), 'question', true);
+        return;
+      }
       this.squareFragment = { square, at: Date.now() };
       this.pieceFragment = null;
-      const names = [...new Set(legalMoves.filter((m: any) => m.to === square).map((m: any) => this.pieceFullName(m.piece).toLowerCase()))];
+      const names = [...new Set(movesTo.map((m: any) => this.pieceFullName(m.piece).toLowerCase()))];
       const options = names.length >= 2 && names.length <= 3 ? `: the ${this.orList(names)}` : '';
       this.triggerFeedback(`Which piece to ${askPiece[1]}${options}?`, 'question', true);
       return;
@@ -700,15 +759,44 @@ class VoiceControlService {
       const name = this.pieceFullName(resolution.badPiece);
       const targets = this.targetsFor(resolution.badPiece, legalMoves);
       const dest = resolution.badTarget.toUpperCase();
-      if (!targets.length) {
-        const why = this.isInCheck() ? ' You are in check: move your king out, block the check, or capture the attacker.' : '';
-        this.triggerFeedback(`Your ${name.toLowerCase()} can't move right now.${why}`, 'warning', true);
+      const lead = !targets.length
+        ? `Your ${name.toLowerCase()} can't move right now.`
+        : this.isInCheck() ? `You are in check, so the ${name.toLowerCase()} can't go to ${dest}.` : `${name} can't go to ${dest}.`;
+      // Another piece can make that move (most likely a misheard name, like "Queen" for "King"): offer it
+      const other = this.oneOrChoice(legalMoves.filter((m: any) => m.to === resolution.badTarget));
+      const sole = this.movableKinds(legalMoves);
+      if (other.move && sole.length === 1) {
+        this.playResolvedMove(other.move, other.description, cleanPrimary);   // a lone king: it is the only piece that can go
         return;
       }
-      this.pieceFragment = { text: name, at: Date.now() };
-      this.squareFragment = null;
-      const lead = this.isInCheck() ? `You are in check, so the ${name.toLowerCase()} can't go to ${dest}.` : `${name} can't go to ${dest}.`;
-      this.triggerFeedback(`${lead} ${this.whichSquareQuestion(name, targets)}`, 'question', true);
+      if (other.move) {
+        this.pieceFragment = targets.length ? { text: name, at: Date.now() } : null;
+        this.squareFragment = null;
+        this.askToConfirm(other.move, `${lead} `);
+        return;
+      }
+      if (!targets.length) {
+        if (sole.length === 1) {
+          this.askSquareFor(sole[0], legalMoves, `${lead} `);
+          return;
+        }
+        if (this.isInCheck()) {
+          this.triggerFeedback(`${lead} You are in check: move your king out, block the check, or capture the attacker.`, 'warning', true);
+          return;
+        }
+        this.pieceFragment = null;
+        this.squareFragment = null;
+        this.triggerFeedback(`${lead} Which piece, and to which square?`, 'question', true);
+        return;
+      }
+      this.askSquareFor(resolution.badPiece, legalMoves, `${lead} `);
+      return;
+    }
+
+    const unreachable = resolution.error?.match(/^None of your pieces can move to ([A-H][1-8])/);
+    if (unreachable) {
+      soundEffects.playInvalidSound();
+      this.askNothingReaches(unreachable[1], legalMoves);
       return;
     }
 
@@ -726,19 +814,26 @@ class VoiceControlService {
     const parsed = this.extractMoveTokens(this.normalizeChessSpeech(rawText));
     if (parsed.piece && !parsed.targetSquare && !parsed.fromSquare) {
       const name = this.pieceFullName(parsed.piece);
-      const targets = this.targetsFor(parsed.piece, legalMoves);
-      if (!targets.length) {
+      if (!this.targetsFor(parsed.piece, legalMoves).length) {
+        const sole = this.movableKinds(legalMoves);
+        if (sole.length === 1) {
+          this.askSquareFor(sole[0], legalMoves, `Your ${name.toLowerCase()} can't move right now. `);
+          return;
+        }
         this.triggerFeedback(`Your ${name.toLowerCase()} can't move right now.`, 'warning', true);
         return;
       }
-      this.pieceFragment = { text: name, at: Date.now() };
-      this.squareFragment = null;
-      this.triggerFeedback(this.whichSquareQuestion(name, targets), 'question', true);
+      this.askSquareFor(parsed.piece, legalMoves);
       return;
     }
 
     // Something chess-like was said but not caught: ask again rather than stay silent. Plain conversation is left alone.
     if (/\b(pawn|knight|bishop|rook|queen|king|takes|castle)\b|\b[a-h][1-8]\b/.test(this.normalizeChessSpeech(rawText))) {
+      const sole = this.movableKinds(legalMoves);
+      if (sole.length === 1) {
+        this.askSquareFor(sole[0], legalMoves, "Sorry, I didn't catch that. ");   // a lone king: only the square is needed
+        return;
+      }
       this.triggerFeedback("Sorry, I didn't catch that. Which piece, and to which square?", 'question', true);
       return;
     }
@@ -757,6 +852,7 @@ class VoiceControlService {
     this.pieceFragment = null;   // a half-heard command is finished once a move plays
     this.squareFragment = null;
     this.choiceFragment = null;
+    this.proposal = null;
     this.triggerFeedback(description, 'success', true);
     this.onMoveCallback?.(move.from, move.to, move.san, description);
   }
@@ -816,6 +912,71 @@ class VoiceControlService {
     const byFrom = moves.filter((m: any, i: number) => moves.findIndex((o: any) => o.from === m.from) === i);
     if (byFrom.length === 1) return { move: byFrom[0], description: this.formatMoveDescription(byFrom[0]) };
     return { move: null, description: '', choices: byFrom };
+  }
+
+  /** The kinds of piece that have a legal move now (just the king when it stands alone). */
+  private movableKinds(legalMoves: any[]): PieceSymbol[] {
+    return [...new Set(legalMoves.map((m: any) => m.piece as PieceSymbol))];
+  }
+
+  /** Asks "Did you mean King to E2?"; a yes plays it. */
+  private askToConfirm(move: any, lead = '') {
+    this.proposal = { move, at: Date.now() };
+    this.choiceFragment = null;
+    this.triggerFeedback(`${lead}Did you mean ${this.formatMoveDescription(move)}?`, 'question', true);
+  }
+
+  /** "King to which square: E2 or F2?", or "Did you mean King to E2?" when it has only one move. */
+  private askSquareFor(piece: PieceSymbol, legalMoves: any[], lead = '') {
+    const name = this.pieceFullName(piece);
+    const moves = legalMoves.filter((m: any) => m.piece === piece);
+    this.pieceFragment = { text: name, at: Date.now() };
+    this.squareFragment = null;
+    this.choiceFragment = null;
+    if (moves.length === 1) {
+      this.askToConfirm(moves[0], lead);
+      return;
+    }
+    this.triggerFeedback(`${lead}${this.whichSquareQuestion(name, this.targetsFor(piece, legalMoves))}`, 'question', true);
+  }
+
+  /** No piece can reach the square heard. With one kind of piece left, ask only for its square. */
+  private askNothingReaches(square: string, legalMoves: any[]) {
+    const sole = this.movableKinds(legalMoves);
+    const sq = square.toUpperCase();
+    if (sole.length === 1) {
+      this.askSquareFor(sole[0], legalMoves, `Your ${this.pieceFullName(sole[0]).toLowerCase()} can't go to ${sq}. `);
+      return;
+    }
+    this.pieceFragment = null;
+    this.squareFragment = null;
+    this.triggerFeedback(`None of your pieces can move to ${sq}. Which piece, and to which square?`, 'question', true);
+  }
+
+  /** True while a question is waiting for its answer. */
+  private hasOpenQuestion(): boolean {
+    const now = Date.now();
+    const fresh = (f: { at: number } | null) => !!f && now - f.at <= PIECE_FRAGMENT_MS;
+    return fresh(this.proposal) || fresh(this.choiceFragment) || fresh(this.pieceFragment) || fresh(this.squareFragment);
+  }
+
+  /**
+   * "Yes", "yeah, play it", "haan" / "No", "nope", "no, knight to F3".
+   * A no can carry the move the player meant; it comes back as `rest`.
+   */
+  private yesOrNo(text: string): { answer: 'yes' | 'no'; rest: string } | null {
+    const words = text.toLowerCase().replace(/[^a-z0-9'\s]/g, ' ').split(/\s+/).filter(Boolean);
+    if (!words.length) return null;
+    const YES = new Set(['yes', 'yeah', 'yea', 'yep', 'yup', 'ya', 'yah', 'yess', 'sure', 'correct', 'right', 'ok', 'okay', 'confirm', 'confirmed', 'exactly', 'absolutely', 'affirmative', 'haan', 'han', 'haa', 'ha', 'ji']);
+    const YES_FILLER = new Set(['please', 'it', 'is', 'that', "that's", 'thats', 'do', 'play', 'go', 'ahead', 'move', 'one', 'sir', 'yes', 'i', 'did', 'mean', 'meant']);
+    if (words.some((w) => YES.has(w)) && words.every((w) => YES.has(w) || YES_FILLER.has(w))) return { answer: 'yes', rest: '' };
+    if (/^(do it|play it|go ahead|that one)$/.test(words.join(' '))) return { answer: 'yes', rest: '' };
+    const NO = new Set(['no', 'nope', 'nah', 'nahi', 'nahin', 'na', 'cancel', 'wrong', 'negative', 'not']);
+    if (!NO.has(words[0])) return null;
+    const NO_FILLER = new Set(['no', 'nope', 'nah', 'nahi', 'nahin', 'na', 'cancel', 'wrong', 'not', 'that', "that's", 'thats', 'it', 'one', 'sorry', 'i', 'said', 'mean', 'meant', 'wanted', 'want', 'please', 'is']);
+    let i = 0;
+    while (i < words.length && NO_FILLER.has(words[i])) i++;
+    return { answer: 'no', rest: words.slice(i).join(' ') };
   }
 
   /**

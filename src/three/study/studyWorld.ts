@@ -1128,6 +1128,7 @@ export function createStudyWorld(opts: StudyOptions) {
   }
 
   // ---------- Room ----------
+  const ROOM_DIM = .6;   // how much light the room's finishes give back, next to the desk's
   function spineTexture(base, seed) {
     return tex(drawCanvas(64, 256, (c, w, h) => {
       c.fillStyle = base; c.fillRect(0, 0, w, h);
@@ -1189,19 +1190,27 @@ export function createStudyWorld(opts: StudyOptions) {
         panel(bayW - .04, .028, depth - .02, x0 + b * bayW + bayW / 2, FLOOR + sy, backZ + depth / 2 + .01);
         let x = x0 + b * bayW + .03;
         const end = x0 + (b + 1) * bayW - .03;
+        let mustStand = false;   // the book after a leaning one stands upright, so the lean rests against it
         while (x < end - .03) {
-          if (rnd() < .035) { x += .03 + rnd() * .06; continue; }
-          if (rnd() < .05) {   // a short stack of books lying flat
+          if (!mustStand && rnd() < .035) { x += .03 + rnd() * .06; continue; }
+          if (!mustStand && rnd() < .05) {   // a short stack of books lying flat: squared up, clear of its neighbours and of the back panel
             let sy2 = FLOOR + sy + .014; const sw = .2 + rnd() * .06;
-            if (x + sw > end) break;
-            for (let k = 0, n = 2 + Math.floor(rnd() * 3); k < n; k++) { const th = .03 + rnd() * .025; variants[Math.floor(rnd() * variants.length)].items.push({ x: x + sw / 2, y: sy2 + th / 2, z: backZ + .15, w: sw - rnd() * .03, h: th, d: .2 + rnd() * .04, lean: 0, flat: (rnd() - .5) * .2 }); sy2 += th; }
-            x += sw + .01; continue;
+            if (x + sw + .03 > end) break;
+            for (let k = 0, n = 2 + Math.floor(rnd() * 3); k < n; k++) { const th = .03 + rnd() * .025, d = .2 + rnd() * .04; variants[Math.floor(rnd() * variants.length)].items.push({ x: x + .015 + sw / 2, y: sy2 + th / 2, z: backZ + .045 + d / 2, w: sw - rnd() * .03, h: th, d, lean: 0, flat: (rnd() - .5) * .08 }); sy2 += th; }
+            x += sw + .03; continue;
           }
           const w = .022 + rnd() * .035, h = .22 + rnd() * .12, d = .17 + rnd() * .06;
           if (x + w > end) break;
-          const lean = rnd() < .08 ? (rnd() - .5) * .25 : 0;
-          variants[Math.floor(rnd() * variants.length)].items.push({ x: x + w / 2, y: FLOOR + sy + .014 + h / 2, z: backZ + .04 + d / 2 + rnd() * .03, w, h, d, lean });
-          x += w + .001;
+          const y0 = FLOOR + sy + .014, z = backZ + .04 + d / 2 + rnd() * .03;
+          // Now and then a book leans into a gap: it pivots on its bottom corner and its top rests on the next book
+          const a = .1 + rnd() * .12, reach = h * Math.sin(a);
+          if (!mustStand && rnd() < .06 && x + w + reach + .07 < end && h * Math.cos(a) + w * Math.sin(a) < .345) {
+            const px = x + w;
+            variants[Math.floor(rnd() * variants.length)].items.push({ x: px - (w / 2) * Math.cos(a) + (h / 2) * Math.sin(a), y: y0 + (w / 2) * Math.sin(a) + (h / 2) * Math.cos(a), z, w, h, d, lean: -a });
+            x += w + reach + .002; mustStand = true; continue;
+          }
+          variants[Math.floor(rnd() * variants.length)].items.push({ x: x + w / 2, y: y0 + h / 2, z, w, h, d, lean: 0 });
+          x += w + .001; mustStand = false;
         }
       }
     }
@@ -1232,7 +1241,7 @@ export function createStudyWorld(opts: StudyOptions) {
       const c = sh(new THREE.Mesh(geo, curtainMat)); c.position.set(cx, FLOOR + 1.18, backZ + .12); g.add(c);
     }
     const rod = new THREE.Mesh(new THREE.CylinderGeometry(.012, .012, 1.9), M.brassDark); rod.rotation.z = Math.PI / 2; rod.position.set(winX, FLOOR + 2.38, backZ + .14); g.add(rod);
-    const winLight = new THREE.RectAreaLight(0xa8bcd6, 3, winW, winH); winLight.position.set(winX, winY, backZ + .05); winLight.lookAt(winX - .6, winY - .6, 0); g.add(winLight);
+    const winLight = new THREE.RectAreaLight(0xa8bcd6, 2.2, winW, winH); winLight.position.set(winX, winY, backZ + .05); winLight.lookAt(winX - .6, winY - .6, 0); g.add(winLight);
 
     // Painting with picture light
     const paintC = drawCanvas(512, 384, (c, w, h) => {
@@ -1251,37 +1260,61 @@ export function createStudyWorld(opts: StudyOptions) {
       const f = sh(new THREE.Mesh(new RoundedBoxGeometry(w, h, .04, 2, .01), gilt)); f.position.set(pX + x, pY + y, backZ + .03); g.add(f);
     }
     const picLamp = new THREE.Mesh(new THREE.CylinderGeometry(.012, .012, .32, 16), M.brass); picLamp.rotation.z = Math.PI / 2; picLamp.position.set(pX, pY + .33, backZ + .12); g.add(picLamp);
-    const picLight = new THREE.SpotLight(0xffc98a, .9, 2, .7, .9, 2); picLight.position.set(pX, pY + .32, backZ + .16); picLight.target.position.set(pX, pY - .1, backZ); g.add(picLight, picLight.target);
+    const picLight = new THREE.SpotLight(0xffc98a, .7, 2, .7, .9, 2); picLight.position.set(pX, pY + .32, backZ + .16); picLight.target.position.set(pX, pY - .1, backZ); g.add(picLight, picLight.target);
 
-    // Chesterfield sofa (right, in front of the window)
-    const sofa = new THREE.Group(); sofa.position.set(1.45, FLOOR, -1.45); sofa.rotation.y = -.6; g.add(sofa);
-    const sofaBack = M.leatherBlack.clone(); sofaBack.normalMap = M.tuftN.clone(); sofaBack.normalMap.repeat.set(3.2, 1); sofaBack.normalScale.set(1.6, 1.6);
-    const plain = M.leatherBlack.clone(); plain.normalMap = M.leatherN;
-    const seat = sh(new THREE.Mesh(new RoundedBoxGeometry(1.9, .22, .78, 4, .07), plain)); seat.position.set(0, .34, .05); sofa.add(seat);
-    const plinth = sh(new THREE.Mesh(new RoundedBoxGeometry(2.1, .2, .9, 2, .03), plain)); plinth.position.set(0, .13, 0); sofa.add(plinth);
-    const bk = sh(new THREE.Mesh(new RoundedBoxGeometry(2.2, .5, .22, 4, .08), sofaBack)); bk.position.set(0, .66, -.36); sofa.add(bk);
+    // A stuffed leather roll: a cylinder whose ends round softly over, as leather does (lies along y, like a cylinder)
+    const leatherRoll = (r, len, mat) => {
+      const b = r * .32, pts = [new THREE.Vector2(0, -len / 2)];
+      for (let i = 0; i <= 8; i++) { const t = i / 8 * Math.PI / 2; pts.push(new THREE.Vector2(r - b + Math.sin(t) * b, -len / 2 + b - Math.cos(t) * b)); }
+      for (let i = 0; i <= 8; i++) { const t = i / 8 * Math.PI / 2; pts.push(new THREE.Vector2(r - b + Math.cos(t) * b, len / 2 - b + Math.sin(t) * b)); }
+      pts.push(new THREE.Vector2(0, len / 2));
+      const geo = new THREE.LatheGeometry(pts, 40);
+      // Map the grain in metres (round the roll, and along it) so it is never stretched along a long roll
+      const uv = geo.attributes.uv, pos = geo.attributes.position;
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * Math.PI * 2 * r, pos.getY(i) + len / 2);
+      return sh(new THREE.Mesh(geo, mat));
+    };
+    // Short turned feet, so the pieces stand on the floor instead of sitting on it
+    const footWood = M.deskSide;
+    const bunFoot = (h) => sh(new THREE.Mesh(new THREE.LatheGeometry([[0, 0], [.024, 0], [.03, h * .25], [.033, h * .55], [.028, h * .85], [.024, h], [0, h]].map(([r, y]) => new THREE.Vector2(r, y)), 24), footWood));
+
+    // Chesterfield sofa (right, angled in front of the window): clear of the wall, the curtains and the desk
+    const sofa = new THREE.Group(); sofa.position.set(1.58, FLOOR, -.92); sofa.rotation.y = -.45; g.add(sofa);
+    const sofaBack = M.leatherBlack.clone(); sofaBack.normalMap = M.tuftN.clone(); sofaBack.normalMap.repeat.set(2.8, 1); sofaBack.normalScale.set(1.6, 1.6);
+    const plain = M.leatherBlack.clone(); plain.normalMap = M.leatherN; plain.normalScale.set(.35, .35);   // smooth hide: a fine grain, not a rough one
+    const seat = sh(new THREE.Mesh(new RoundedBoxGeometry(1.48, .22, .78, 4, .07), plain)); seat.position.set(0, .34, .05); sofa.add(seat);
+    const plinth = sh(new THREE.Mesh(new RoundedBoxGeometry(1.8, .2, .9, 2, .03), plain)); plinth.position.set(0, .13, 0); sofa.add(plinth);
+    const bk = sh(new THREE.Mesh(new RoundedBoxGeometry(1.9, .5, .22, 4, .08), sofaBack)); bk.position.set(0, .66, -.36); sofa.add(bk);
     for (const s of [-1, 1]) {
-      const arm = sh(new THREE.Mesh(new RoundedBoxGeometry(.22, .5, .9, 4, .08), sofaBack)); arm.position.set(s * 1.0, .45, 0); sofa.add(arm);
-      const roll = sh(new THREE.Mesh(new THREE.CylinderGeometry(.13, .13, .92, 32), plain)); roll.rotation.x = Math.PI / 2; roll.position.set(s * 1.03, .68, 0); sofa.add(roll);
+      const arm = sh(new THREE.Mesh(new RoundedBoxGeometry(.22, .5, .9, 4, .08), sofaBack)); arm.position.set(s * .84, .45, 0); sofa.add(arm);
+      const roll = leatherRoll(.13, .92, plain); roll.rotation.x = Math.PI / 2; roll.position.set(s * .87, .68, 0); sofa.add(roll);
+      for (const fz of [-.38, .38]) { const f = bunFoot(.03); f.position.set(s * .82, 0, fz); sofa.add(f); }
     }
-    const brollTop = sh(new THREE.Mesh(new THREE.CylinderGeometry(.13, .13, 2.2, 32), plain)); brollTop.rotation.z = Math.PI / 2; brollTop.position.set(0, .9, -.38); sofa.add(brollTop);
-    const cushion = sh(new THREE.Mesh(new RoundedBoxGeometry(.4, .35, .14, 4, .06), M.leatherBrown)); cushion.position.set(.55, .6, -.18); cushion.rotation.set(-.2, -.2, .1); sofa.add(cushion);
+    const brollTop = leatherRoll(.13, 1.9, plain); brollTop.rotation.z = Math.PI / 2; brollTop.position.set(0, .9, -.38); sofa.add(brollTop);
+    const cushion = sh(new THREE.Mesh(new RoundedBoxGeometry(.4, .35, .14, 4, .06), M.leatherBrown)); cushion.position.set(.42, .6, -.18); cushion.rotation.set(-.2, -.2, .1); sofa.add(cushion);
 
-    // Opponent's club chair behind the desk (Black's seat)
-    const chair = new THREE.Group(); chair.position.set(-.66, FLOOR, -1.36); chair.rotation.y = .42; g.add(chair);
+    // Opponent's club chair behind the desk (Black's seat): its back clear of the bookcase
+    const chair = new THREE.Group(); chair.position.set(-.62, FLOOR, -1.04); chair.rotation.y = .3; g.add(chair);
     // Chesterfield club chair: tufted back and arms, rolled tops, loose seat cushion
     const cTuft = M.leatherBrown.clone(); cTuft.normalMap = M.tuftN.clone(); cTuft.normalMap.repeat.set(1.6, 1); cTuft.normalScale.set(1.5, 1.5);
     const cBase = sh(new THREE.Mesh(new RoundedBoxGeometry(.86, .3, .76, 3, .04), M.leatherBrown)); cBase.position.set(0, .2, 0); chair.add(cBase);
     const cSeat = sh(new THREE.Mesh(new RoundedBoxGeometry(.58, .14, .6, 4, .06), M.leatherBrown)); cSeat.position.set(0, .41, .05); chair.add(cSeat);
     const cBack = sh(new THREE.Mesh(new RoundedBoxGeometry(.86, .4, .16, 4, .06), cTuft)); cBack.position.set(0, .55, -.3); chair.add(cBack);
-    const cRoll = sh(new THREE.Mesh(new THREE.CylinderGeometry(.08, .08, .9, 32), M.leatherBrown)); cRoll.rotation.z = Math.PI / 2; cRoll.position.set(0, .78, -.31); chair.add(cRoll);
+    const cRoll = leatherRoll(.08, .9, M.leatherBrown); cRoll.rotation.z = Math.PI / 2; cRoll.position.set(0, .78, -.31); chair.add(cRoll);
     for (const s of [-1, 1]) {
       const a = sh(new THREE.Mesh(new RoundedBoxGeometry(.14, .28, .74, 4, .05), cTuft)); a.position.set(s * .36, .46, 0); chair.add(a);
-      const r = sh(new THREE.Mesh(new THREE.CylinderGeometry(.075, .075, .76, 32), M.leatherBrown)); r.rotation.x = Math.PI / 2; r.position.set(s * .38, .62, .01); chair.add(r);
-      const cap = sh(new THREE.Mesh(new THREE.CircleGeometry(.075, 32), M.leatherBrown)); cap.position.set(s * .38, .62, .39); chair.add(cap);
+      const r = leatherRoll(.075, .78, M.leatherBrown); r.rotation.x = Math.PI / 2; r.position.set(s * .38, .62, .01); chair.add(r);
+      for (const fz of [-.32, .32]) { const f = bunFoot(.05); f.position.set(s * .38, 0, fz); chair.add(f); }
     }
     const nails = new THREE.InstancedMesh(new THREE.SphereGeometry(.005, 6, 4), M.brass, 40);
     for (let i = 0; i < 40; i++) { mtx.makeTranslation(-.39 + i * .02, .32, .365); nails.setMatrixAt(i, mtx); } chair.add(nails);
+
+    // The room sits a little darker than the desk, so the lamp reads as the light of the scene: the room's own
+    // finishes reflect less (materials it shares with the desk are copied first, so the desk and its things are unchanged;
+    // the window's glow is a light, not a finish, and stays as it is)
+    const dimmed = new Map();
+    const dim = (m) => { if (!m || m.isMeshBasicMaterial) return m; if (!dimmed.has(m)) { const c = m.clone(); c.color.multiplyScalar(ROOM_DIM); dimmed.set(m, c); } return dimmed.get(m); };
+    g.traverse((o) => { if (o.isMesh) o.material = Array.isArray(o.material) ? o.material.map(dim) : dim(o.material); });
     return g;
   }
 
@@ -1300,14 +1333,14 @@ export function createStudyWorld(opts: StudyOptions) {
     // Soft upward spill so the shade top and lamp base read
     const spill = new THREE.PointLight(0xffbb74, .004, 1.2, 2); spill.position.copy(bulb).add(new THREE.Vector3(0, -.05, 0)); world.add(spill);
     // Faint fill so the darkest areas are not pure black
-    roomFills.hemi = new THREE.HemisphereLight(0x3a4250, 0x1a1008, .55); world.add(roomFills.hemi);
+    roomFills.hemi = new THREE.HemisphereLight(0x3a4250, 0x1a1008, .4); world.add(roomFills.hemi);
     // Soft warm fill from the player's side so the faces of the pieces turned toward White are readable
     const frontFill = new THREE.DirectionalLight(0xffe0bc, 1.05); roomFills.front = frontFill; frontFill.position.set(-.4, 1.3, 1.5); frontFill.target.position.set(0, 0, 0); world.add(frontFill, frontFill.target);
     // Cool low back-light from Black's side: rims every piece so its silhouette separates from the squares behind it
     const rimLight = new THREE.DirectionalLight(0xc8d8ff, 1.1); rimLight.position.set(-1.6, .7, -1.0); rimLight.target.position.set(0, .03, 0); world.add(rimLight, rimLight.target);
     // Gentle overhead room light so the study is dim rather than black
-    const roomLight = new THREE.PointLight(0xffd2a0, 1.6, 6, 1.6); roomFills.room = roomLight; roomLight.position.set(-.3, 1.7, -.4); world.add(roomLight);
-    const winFill = new THREE.DirectionalLight(0x8ea4c2, .45); winFill.position.set(2.5, 1.8, -1.8); winFill.target.position.set(0, 0, 0); world.add(winFill, winFill.target);
+    const roomLight = new THREE.PointLight(0xffd2a0, .95, 6, 1.6); roomFills.room = roomLight; roomLight.position.set(-.3, 1.7, -.4); world.add(roomLight);
+    const winFill = new THREE.DirectionalLight(0x8ea4c2, .3); winFill.position.set(2.5, 1.8, -1.8); winFill.target.position.set(0, 0, 0); world.add(winFill, winFill.target);
     // Soft overhead panel for play: fades in in game view so every square is evenly lit
     overheadLight = new THREE.RectAreaLight(0xffffff, 0, .9, .9); overheadLight.position.set(0, 1.0, .02); overheadLight.lookAt(0, 0, .02); world.add(overheadLight);
     // …plus a soft top light with shadows, so each piece sits on a short contact shadow and separates from its square
@@ -1316,7 +1349,7 @@ export function createStudyWorld(opts: StudyOptions) {
     world.add(gameKey, gameKey.target);
     gameSide = new THREE.DirectionalLight(0xe6eeff, .55); gameSide.position.set(.8, .45, -.15); gameSide.target.position.set(0, .03, 0); world.add(gameSide, gameSide.target);   // cool fill from the right, so shaded sides keep their shape
     // Dim warm wash on the bookshelves so the spines read in the dark
-    const shelfWash = new THREE.SpotLight(0xffb878, 2.6, 6, .75, 1, 2); shelfWash.position.set(-.9, 1.6, -.9); shelfWash.target.position.set(-1.0, FLOOR + 1.45, -2.0); shelfWash.angle = .95; world.add(shelfWash, shelfWash.target);
+    const shelfWash = new THREE.SpotLight(0xffb878, 1.6, 6, .75, 1, 2); shelfWash.position.set(-.9, 1.6, -.9); shelfWash.target.position.set(-1.0, FLOOR + 1.45, -2.0); shelfWash.angle = .95; world.add(shelfWash, shelfWash.target);
     // Lacquered desk: a soft, low-res mirror added on top of the clearcoat shading
     const refl = new Reflector(new THREE.PlaneGeometry(1.66, .91), { textureWidth: innerWidth / 3, textureHeight: innerHeight / 3, clipBias: .003 });
     refl.material.transparent = true; refl.material.blending = THREE.AdditiveBlending; refl.material.depthWrite = false;
@@ -1455,7 +1488,7 @@ export function createStudyWorld(opts: StudyOptions) {
     M.pieceDark.envMapIntensity = 2.6;   // bright reflections trace the black pieces' outlines (same in every view)
     const bloomPass = composer && composer.passes.find(p => p instanceof UnrealBloomPass); if (bloomPass) bloomPass.enabled = m !== 'game'; if (haze) haze.visible = m !== 'game'; if (sparkles) sparkles.visible = m !== 'game';   // no lamp glow over the board while playing
     if (overheadLight) { const o0 = overheadLight.intensity, o1 = m === 'game' ? .45 : 0, g0 = gameKey.intensity, g1 = m === 'game' ? 3.4 : 1.5, q0 = gameSide.intensity, q1 = m === 'game' ? .9 : .55, h0 = roomFills.hemi.intensity, r0 = roomFills.front.intensity, p0 = roomFills.room.intensity, n0 = scene.environmentIntensity, f0 = LIGHT_SQ.value.clone(), f1 = m === 'game' ? new THREE.Color(.5, .49, .48) : new THREE.Color(1, 1, 1), c0 = M.field.clearcoat, c1 = .15, s0 = M.field.specularIntensity, s1 = m === 'game' ? .6 : 1, e0 = renderer.toneMappingExposure, e1 = m === 'game' ? 1.02 : 1.2;   // deeper maple in play so ivory pieces stand off the light squares
-      animate(.9, (t) => { overheadLight.intensity = lerp(o0, o1, t); gameKey.intensity = lerp(g0, g1, t); gameSide.intensity = lerp(q0, q1, t); const pg = m === 'game'; roomFills.hemi.intensity = lerp(h0, pg ? .2 : .55, t); roomFills.front.intensity = lerp(r0, pg ? .3 : 1.05, t); roomFills.room.intensity = lerp(p0, (pg ? .4 : 1.6) * LS, t); scene.environmentIntensity = lerp(n0, pg ? .35 : .55, t); LIGHT_SQ.value.copy(f0).lerp(f1, t); M.field.clearcoat = lerp(c0, c1, t); M.field.specularIntensity = lerp(s0, s1, t); renderer.toneMappingExposure = lerp(e0, e1, t); renderer.shadowMap.needsUpdate = true; }); }
+      animate(.9, (t) => { overheadLight.intensity = lerp(o0, o1, t); gameKey.intensity = lerp(g0, g1, t); gameSide.intensity = lerp(q0, q1, t); const pg = m === 'game'; roomFills.hemi.intensity = lerp(h0, pg ? .15 : .4, t); roomFills.front.intensity = lerp(r0, pg ? .3 : 1.05, t); roomFills.room.intensity = lerp(p0, (pg ? .25 : .95) * LS, t); scene.environmentIntensity = lerp(n0, pg ? .35 : .55, t); LIGHT_SQ.value.copy(f0).lerp(f1, t); M.field.clearcoat = lerp(c0, c1, t); M.field.specularIntensity = lerp(s0, s1, t); renderer.toneMappingExposure = lerp(e0, e1, t); renderer.shadowMap.needsUpdate = true; }); }
     if (keySpot && m !== 'book') { const k0 = keySpot.intensity, k1 = (m === 'game' ? .6 : LAMP_ON) * LS; animate(.8, (t) => { keySpot.intensity = lerp(k0, k1, t); }); }   // softer lamp while playing, so no square is washed out
     const to = viewFor(m);
     if (m !== 'game' && prevMode === 'game') takeCamera();   // before the tween reads where the camera is

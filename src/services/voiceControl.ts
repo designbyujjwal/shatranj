@@ -1369,13 +1369,15 @@ class VoiceControlService {
     s = s.replace(/\b(porn|porns|pawns|pond|prawn|pon|paun)\b/g, 'pawn');
 
     // 2b. Common mishearings of "knight" when a square follows ("9 to F3", "Nike to F3", "nights to f3")
+    // Run together too: "knight to E5" is often heard as "92E5" or "92 E5"
+    s = s.replace(/\b(9|nine|nike|nite|night|knight)\s*(?:2|to)\s*([a-h])\s*([1-8])\b/g, 'knight to $2$3');
     s = s.replace(/\b(9|nine|nike|nikes|nights|knights|nite|nites|night)\s+(?=(?:to\s+|2\s+)?[a-h]\s*[1-8]\b)/g, 'knight ');
     // …and of "queen" ("Quinto F3" = "queen to", "Que to F3", "Kean to F3")
     s = s.replace(/\b(quinto|queento|queen2)\b/g, 'queen to');
     s = s.replace(/\b(que|kean|quean|queene|queens)\s+(?=(?:to\s+|2\s+)?[a-h]\s*[1-8]\b)/g, 'queen ');
     // Run-together forms: "Q2 F3", "q2f3", "Queen 2F3", "queen tf3"
     s = s.replace(/\b([qnrk])2\s*([a-h][1-8])\b/g, '$1 to $2');   // not "b": "b2 b4" is a pawn move from b2
-    s = s.replace(/\b(queen|knight|bishop|rook|king|pawn)\s+(?:2|t)([a-h][1-8])\b/g, '$1 to $2');
+    s = s.replace(/\b(queen|knight|bishop|rook|king|pawn)\s*(?:2|t)\s*([a-h][1-8])\b/g, '$1 to $2');
 
     // 3. Single-letter piece spoken notation (e.g. "b to c4", "q to f4", "n to f3", "r to d1")
     s = s.replace(/\b(bee|bea|b)\s+(?:to\s+|2\s+)?([a-h][1-8])\b/g, 'bishop to $2');

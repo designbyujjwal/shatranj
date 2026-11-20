@@ -215,19 +215,6 @@ export const GameControls: React.FC<GameControlsProps> = ({
             <RotateCcw className="w-[18px] h-[18px] stroke-[1.8] text-current" />
           </button>
 
-          {/* Profile Button in paper style (no black box) */}
-          <button
-            type="button"
-            onClick={() => { if (!onOpenProfile?.()) setIsProfileOpen(true); }}
-            className="hud-paper h-10 flex items-center gap-2 pl-1 pr-4 rounded-full"
-            title="Open Profile & Settings"
-          >
-            <CommanderPortrait color={playerColor} className="w-8 h-8 rounded-full shrink-0 ring-1 ring-[#7d481b]/40" />
-            <span className="hud-paper-label">
-              Profile
-            </span>
-          </button>
-
           {/* Full Screen */}
           <button
             type="button"
@@ -239,6 +226,19 @@ export const GameControls: React.FC<GameControlsProps> = ({
             {isFullscreen
               ? <Minimize className="w-[18px] h-[18px] stroke-[1.8] text-current" />
               : <Maximize className="w-[18px] h-[18px] stroke-[1.8] text-current" />}
+          </button>
+
+          {/* Profile Button in paper style (no black box) */}
+          <button
+            type="button"
+            onClick={() => { if (!onOpenProfile?.()) setIsProfileOpen(true); }}
+            className="hud-paper h-10 flex items-center gap-2 pl-1 pr-4 rounded-full"
+            title="Open Profile & Settings"
+          >
+            <CommanderPortrait color={playerColor} className="w-8 h-8 rounded-full shrink-0 ring-1 ring-[#7d481b]/40" />
+            <span className="hud-paper-label">
+              Profile
+            </span>
           </button>
         </div>
       </header>

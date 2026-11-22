@@ -50,6 +50,23 @@ const Crop: React.FC<{ box: Box; className?: string; style?: React.CSSProperties
   );
 };
 
+/**
+ * The landing page keeps the 3D sword: the letters and tagline from the logo image, with the settled
+ * frame of the sword laid over them in place of the old drawn one, swapped into the landing logo.
+ */
+const keepSword = (logoImg: HTMLImageElement, logo: HTMLElement, frame: HTMLCanvasElement, layer: DOMRect) => {
+  const target = document.querySelector<HTMLImageElement>('#landing img');
+  if (!target || !logoImg.naturalWidth) return;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  if (!g) return;
+  for (const [l, t, r, b] of [...LETTERS, TAGLINE]) g.drawImage(logoImg, l, t, r - l, b - t, l, t, r - l, b - t);
+  const box = logo.getBoundingClientRect(), sx = frame.width / layer.width, sy = frame.height / layer.height;
+  g.drawImage(frame, (box.left - layer.left) * sx, (box.top - layer.top) * sy, box.width * sx, box.height * sy, 0, 0, W, H);
+  try { target.src = c.toDataURL('image/png'); } catch { /* a tainted canvas keeps the flat logo */ }
+};
+
 const isInvite = () => /[?&]room=/.test(window.location.search);
 
 export const IntroSplash: React.FC<{ hold?: boolean }> = ({ hold = false }) => {   // hold: the lab keeps the last frame
@@ -60,6 +77,7 @@ export const IntroSplash: React.FC<{ hold?: boolean }> = ({ hold = false }) => {
   const [gone, setGone] = useState(!show);
   const leaveRef = useRef<() => void>(() => {});
   const logoRef = useRef<HTMLDivElement>(null);
+  const logoImgRef = useRef<HTMLImageElement>(null);
   const scoreRef = useRef<ReturnType<typeof createIntroScore>>(null);
 
   // The intro has its own score: the ambient bed waits until the title has gone
@@ -73,6 +91,7 @@ export const IntroSplash: React.FC<{ hold?: boolean }> = ({ hold = false }) => {
     if (!show) return;
     let alive = true;
     const img = new Image();
+    logoImgRef.current = img;
     // Start once the logo has loaded. decode() alone can hang in Chrome (the title stayed black), so a timer backs it up
     const go = () => { if (alive) setReady(true); };
     img.onload = go;
@@ -153,7 +172,8 @@ export const IntroSplash: React.FC<{ hold?: boolean }> = ({ hold = false }) => {
           <div className="intro-sheen" style={{ maskImage: SHEEN_MASK, WebkitMaskImage: SHEEN_MASK, maskComposite: 'intersect', WebkitMaskComposite: 'source-in', animationDelay: `${LETTER_START + 3800}ms` }} />
         </div>
       </div>
-      <IntroSword3D className="intro-sword3d" playing={ready && entered} logoRef={logoRef} onStart={startScore} />
+      <IntroSword3D className="intro-sword3d" playing={ready && entered} logoRef={logoRef} onStart={startScore}
+        onSettled={(frame, layer) => { if (logoImgRef.current && logoRef.current) keepSword(logoImgRef.current, logoRef.current, frame, layer); }} />
     </div>
   );
 };

@@ -473,12 +473,18 @@ const sway = (ms: number) => Math.sin(((ms - SETTLED_MS) / 1000) * .42) * .3;   
  * Full-screen 3D layer. Starts its shot when `playing` turns true and ends with the sword drawn
  * exactly over the T of `logoRef` (measured every frame, so it follows any resize).
  */
-export const IntroSword3D: React.FC<{ playing: boolean; logoRef: React.RefObject<HTMLDivElement | null>; onStart?: () => void; className?: string }> = ({ playing, logoRef, onStart, className }) => {
+export const IntroSword3D: React.FC<{
+  playing: boolean; logoRef: React.RefObject<HTMLDivElement | null>; onStart?: () => void;
+  onSettled?: (frame: HTMLCanvasElement, layer: DOMRect) => void;   // called once, just after a frame of the sword at rest in the T is drawn
+  className?: string;
+}> = ({ playing, logoRef, onStart, onSettled, className }) => {
   const mount = useRef<HTMLDivElement>(null);
   const playingRef = useRef(playing);
   playingRef.current = playing;
   const onStartRef = useRef(onStart);
   onStartRef.current = onStart;
+  const onSettledRef = useRef(onSettled);
+  onSettledRef.current = onSettled;
 
   useEffect(() => {
     const host = mount.current;
@@ -573,7 +579,7 @@ export const IntroSword3D: React.FC<{ playing: boolean; logoRef: React.RefObject
     const closePos = new THREE.Vector3(), closeAim = new THREE.Vector3();
     const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-    let raf = 0, started = 0;
+    let raf = 0, started = 0, settled = false;
     const t0 = performance.now();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
@@ -653,6 +659,8 @@ export const IntroSword3D: React.FC<{ playing: boolean; logoRef: React.RefObject
       dustMat.uniforms.uOpacity.value = 1.6 * emberOn;
 
       renderer.render(scene, camera);
+      // Read in the same frame it was drawn, before the browser clears the buffer
+      if (!settled && ms >= SETTLED_MS + 800) { settled = true; onSettledRef.current?.(renderer.domElement, host.getBoundingClientRect()); }
     };
     raf = requestAnimationFrame(loop);
 

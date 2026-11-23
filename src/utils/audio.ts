@@ -155,37 +155,55 @@ class ChessAudioEngine {
     if (!ctx) return;
     try {
       const now = ctx.currentTime;
+      const out = ctx.createGain();
+      out.gain.value = 0.9;
+      out.connect(ctx.destination);
 
-      // Resonant wood click & snap
-      const osc1 = ctx.createOscillator();
-      const osc1Gain = ctx.createGain();
-      osc1.type = 'triangle';
-      osc1.frequency.setValueAtTime(280, now);
-      osc1.frequency.exponentialRampToValueAtTime(80, now + 0.14);
+      // A short burst of noise, shaped by a filter: the building block of the crack and the falling grit
+      const burst = (at: number, length: number, type: BiquadFilterType, freq: number, q: number, level: number) => {
+        const frames = Math.max(1, Math.floor(ctx.sampleRate * length));
+        const buffer = ctx.createBuffer(1, frames, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < frames; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / frames, 2);
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        const filter = ctx.createBiquadFilter();
+        filter.type = type;
+        filter.frequency.value = freq;
+        filter.Q.value = q;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(level, at);
+        gain.gain.exponentialRampToValueAtTime(0.001, at + length);
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(out);
+        src.start(at);
+        src.stop(at + length + 0.01);
+      };
 
-      osc1Gain.gain.setValueAtTime(0.35, now);
-      osc1Gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      // 1. The blow: a dull knock of stone on stone
+      const knock = ctx.createOscillator();
+      const knockGain = ctx.createGain();
+      knock.type = 'triangle';
+      knock.frequency.setValueAtTime(190, now);
+      knock.frequency.exponentialRampToValueAtTime(60, now + 0.12);
+      knockGain.gain.setValueAtTime(0.32, now);
+      knockGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+      knock.connect(knockGain);
+      knockGain.connect(out);
+      knock.start(now);
+      knock.stop(now + 0.18);
 
-      osc1.connect(osc1Gain);
-      osc1Gain.connect(ctx.destination);
+      // 2. The crack: a bright, sharp split
+      burst(now, 0.07, 'bandpass', 2400, 1.2, 0.38);
+      burst(now + 0.004, 0.16, 'lowpass', 700, 0.7, 0.22);
 
-      // Click transient
-      const osc2 = ctx.createOscillator();
-      const osc2Gain = ctx.createGain();
-      osc2.type = 'square';
-      osc2.frequency.setValueAtTime(600, now);
-      osc2.frequency.exponentialRampToValueAtTime(120, now + 0.05);
-
-      osc2Gain.gain.setValueAtTime(0.15, now);
-      osc2Gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-
-      osc2.connect(osc2Gain);
-      osc2Gain.connect(ctx.destination);
-
-      osc1.start(now);
-      osc2.start(now);
-      osc1.stop(now + 0.2);
-      osc2.stop(now + 0.06);
+      // 3. The grit: small chips landing just after
+      const chips = 5;
+      for (let i = 0; i < chips; i++) {
+        const at = now + 0.06 + i * 0.035 + Math.random() * 0.03;
+        burst(at, 0.018 + Math.random() * 0.012, 'highpass', 2800 + Math.random() * 2500, 0.8, 0.12 * (1 - i / (chips + 1)));
+      }
     } catch {
       // Audio error suppressed
     }

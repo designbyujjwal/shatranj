@@ -19,6 +19,7 @@ import { royalBattleMusic } from './utils/music';
 import { HandCameraPIP } from './components/HandCameraPIP';
 import { MoveHistory } from './components/MoveHistory';
 import { GameControls, TurnChip } from './components/GameControls';
+import { lostPieces } from './utils/captured';
 import { FullscreenButton } from './components/FullscreenButton';
 import { IntroSplash } from './components/IntroSplash';
 import { SpatialPointer } from './components/SpatialPointer';
@@ -323,20 +324,9 @@ export default function App() {
 
   // Compute captured pieces from chess history
   const updateCapturedPieces = useCallback(() => {
-    const history = chessRef.current.history({ verbose: true });
-    const captured: CapturedPieces = { w: [], b: [] };
-    history.forEach((m) => {
-      if (m.captured) {
-        if (m.color === 'w') {
-          // White captured a black piece
-          captured.w.push(m.captured as PieceType);
-        } else {
-          // Black captured a white piece
-          captured.b.push(m.captured as PieceType);
-        }
-      }
-    });
-    setCapturedPieces(captured);
+    // captured.w holds the black pieces White took, captured.b the white pieces Black took
+    const lost = lostPieces(chessRef.current);
+    setCapturedPieces({ w: lost.b, b: lost.w });
   }, []);
 
   // Online duel: the server's result text names the winner ("Checkmate! Black wins!", "White resigned. Black wins!", "Match drawn.")

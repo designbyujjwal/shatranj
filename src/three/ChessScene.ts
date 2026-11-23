@@ -14,6 +14,7 @@ import {
 } from './pieceGeometries';
 import { MaterialManager } from './materials';
 import { soundEffects } from '../utils/audio';
+import { lostPieces } from '../utils/captured';
 import {
   createTournamentEquirectangularTexture,
   createTournamentTableGroup,
@@ -983,19 +984,10 @@ export class ChessSceneManager {
     }
 
     // 6. Synchronize 3D captured pieces on table flanks (left for black, right for white)
-    const capturedBlack: PieceType[] = [];
-    const capturedWhite: PieceType[] = [];
-    for (const m of history) {
-      if (m.captured) {
-        if (m.color === 'w') {
-          // White captured a black piece -> Black piece killed
-          capturedBlack.push(m.captured as PieceType);
-        } else {
-          // Black captured a white piece -> White piece killed
-          capturedWhite.push(m.captured as PieceType);
-        }
-      }
-    }
+    // Counted from the board, so a position reloaded online (which clears the history) keeps its fallen pieces
+    const lost = lostPieces(chess);
+    const capturedBlack = lost.b;
+    const capturedWhite = lost.w;
     this.syncCapturedPieces(capturedBlack, capturedWhite);
   }
 
@@ -1465,6 +1457,61 @@ export class ChessSceneManager {
    *    - Moves to designated graveyard slot on the marble table flank.
    *    - Softly descends and fades in (0.0 -> 1.0) into its upright resting slot.
    */
+  /** A struck piece chips: a few small shards of its own stone burst away from the blow, bounce once and fade. */
+  private spawnCaptureChips(origin: THREE.Vector3, color: PieceColor, awayDir: THREE.Vector3) {
+    const material = this.materials.getPieceMaterial(color).clone();
+    material.transparent = true;
+    const group = new THREE.Group();
+    this.scene.add(group);
+    const floorY = origin.y;
+    const chips: { mesh: THREE.Mesh; vel: THREE.Vector3; spin: THREE.Vector3 }[] = [];
+    for (let i = 0; i < 11; i++) {
+      const size = 0.035 + Math.random() * 0.05;
+      const mesh = new THREE.Mesh(new THREE.TetrahedronGeometry(size), material);
+      mesh.position.set(origin.x, floorY + 0.25 + Math.random() * 0.35, origin.z);
+      mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+      // Mostly away from the attacker, with some scatter all round
+      const a = Math.random() * Math.PI * 2;
+      const vel = new THREE.Vector3(Math.cos(a), 0, Math.sin(a)).multiplyScalar(0.6 + Math.random() * 0.9)
+        .addScaledVector(awayDir, 1.1);
+      vel.y = 1.6 + Math.random() * 1.6;
+      chips.push({ mesh, vel, spin: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(18) });
+      group.add(mesh);
+    }
+
+    const LIFE = 750;
+    const start = performance.now();
+    let last = start;
+    const step = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const t = (now - start) / LIFE;
+      for (const c of chips) {
+        c.vel.y -= 9.8 * dt;
+        c.mesh.position.addScaledVector(c.vel, dt);
+        if (c.mesh.position.y < floorY + 0.02) {
+          c.mesh.position.y = floorY + 0.02;
+          c.vel.y = Math.abs(c.vel.y) * 0.3;   // one small bounce
+          c.vel.x *= 0.5;
+          c.vel.z *= 0.5;
+          c.spin.multiplyScalar(0.5);
+        }
+        c.mesh.rotation.x += c.spin.x * dt;
+        c.mesh.rotation.y += c.spin.y * dt;
+        c.mesh.rotation.z += c.spin.z * dt;
+      }
+      material.opacity = t < 0.55 ? 1 : Math.max(0, 1 - (t - 0.55) / 0.45);
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        this.scene.remove(group);
+        chips.forEach((c) => c.mesh.geometry.dispose());
+        material.dispose();
+      }
+    };
+    requestAnimationFrame(step);
+  }
+
   private animateCaptureRemoval(pieceObj: PieceMeshObject, id: string, impactSourcePos?: THREE.Vector3) {
     if (pieceObj.userData.isAnimating) return;
     pieceObj.userData.isAnimating = true;
@@ -1544,6 +1591,8 @@ export class ChessSceneManager {
     // Target rotation upright in tray, facing slightly toward the battlefield
     const targetRotationY = color === 'b' ? Math.PI * 0.20 : -Math.PI * 0.20;
     const targetQuaternion = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetRotationY);
+
+    this.spawnCaptureChips(startPos, color, impulseDir);
 
     const stage1Duration = 320; // 320ms subtle slide & fade-out on tile
     const stage2Duration = 260; // 260ms soft drop & fade-in into tray slot

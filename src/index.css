@@ -531,3 +531,13 @@ button.hud-paper:active { transform: scale(.96); }
   .is-playing .intro-stage, .is-playing .intro-letters, .is-playing .intro-flash, .is-playing .intro-sheen { animation: none; }
   .intro-gate, .intro-gate-label { animation: none; }
 }
+
+/* Online duel: your own camera in your corner, the same size on screen as the opponent's gilded frame across the table */
+.self-frame { display: none; }
+:root[style*="--opp-frame-w"] .self-frame {
+  display: block; position: fixed; left: 16px; bottom: 16px; z-index: 30; pointer-events: none;
+  width: var(--opp-frame-w); height: var(--opp-frame-h); box-sizing: content-box;
+  border: calc(var(--opp-frame-w) * .073) solid #c99a4b; border-radius: 3px; background: #1a0f08;
+  box-shadow: inset 0 0 0 2px #8a6428, 0 6px 18px rgba(0, 0, 0, .55);
+}
+.self-frame video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }

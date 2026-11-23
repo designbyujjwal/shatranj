@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Practice Partner</title>
+    <style>
+      body { margin: 0; background: #1a0f08; color: #e9dcc0; font: 14px/1.5 Georgia, serif; }
+      main { max-width: 980px; margin: 0 auto; padding: 16px; display: grid; gap: 12px; }
+      h1 { font: 600 18px Georgia, serif; margin: 0; letter-spacing: .08em; text-transform: uppercase; color: #c99a4b; }
+      .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+      .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      figure { margin: 0; background: #000; border: 1px solid #7d481b; border-radius: 8px; overflow: hidden; }
+      figure video { width: 100%; aspect-ratio: 4/3; display: block; background: #26150b; }
+      figcaption { padding: 4px 8px; font-size: 12px; color: #c99a4b; }
+      button, input { font: inherit; background: #2b190d; color: #e9dcc0; border: 1px solid #7d481b; border-radius: 6px; padding: 5px 10px; }
+      button { cursor: pointer; }
+      button:hover { background: #3a2312; }
+      label { display: inline-flex; gap: 4px; align-items: center; }
+      #log { background: #0d0805; border: 1px solid #3a2312; border-radius: 6px; padding: 8px; height: 220px; overflow: auto; font: 12px/1.45 ui-monospace, monospace; white-space: pre-wrap; }
+      #state { font: 12px ui-monospace, monospace; color: #c9b896; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Practice partner</h1>
+      <div class="row">
+        <label>Room <input id="room" size="14" placeholder="room code" /></label>
+        <label>Name <input id="name" size="12" value="Practice Partner" /></label>
+        <button id="join">Join room</button>
+        <button id="leave">Leave</button>
+        <label><input type="checkbox" id="auto" checked /> Plays its moves</label>
+        <label><input type="checkbox" id="acceptUndo" checked /> Accepts takebacks</label>
+        <label><input type="checkbox" id="acceptDraw" /> Accepts draws</label>
+      </div>
+      <div class="row">
+        <button id="mic">Mute mic</button>
+        <button id="cam">Camera off</button>
+        <button id="hello">Say hello</button>
+        <button id="undo">Ask takeback</button>
+        <button id="draw">Offer draw</button>
+        <button id="resign">Resign</button>
+        <button id="rematch">Rematch</button>
+        <label><input type="checkbox" id="realcam" /> Use this computer's real camera and mic</label>
+      </div>
+      <div class="tiles">
+        <figure><video id="mine" autoplay playsinline muted></video><figcaption>The partner (what you should see)</figcaption></figure>
+        <figure><video id="theirs" autoplay playsinline></video><figcaption>You, as the partner receives you</figcaption></figure>
+      </div>
+      <div id="state"></div>
+      <div id="log"></div>
+    </main>
+    <script type="module" src="/src/partner.ts"></script>
+  </body>
+</html>

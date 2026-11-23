@@ -22,6 +22,7 @@ import {
 import { createDeskLamp } from './deskLamp';
 import { createStudyWorld, type StudySelection, type StudyProfileState, type StudyOrder } from './study/studyWorld';
 import { isSceneRenderHeld } from './renderHold';
+import { createOpponentFrame } from './opponentFrame';
 
 export interface PieceMeshObject extends THREE.Group {
   userData: {
@@ -41,6 +42,8 @@ export interface PieceMeshObject extends THREE.Group {
 export class ChessSceneManager {
   private container: HTMLElement;
   private scene: THREE.Scene;
+  private opponentFrame = createOpponentFrame();
+  private frameSize = '';
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
   private composer: EffectComposer;
@@ -200,6 +203,7 @@ export class ChessSceneManager {
     this.scene.add(this.boardGroup);
     this.scene.add(this.piecesGroup);
     this.scene.add(this.capturedPiecesGroup);
+    this.scene.add(this.opponentFrame.group);
 
     this.createBoard();
     this.createAffordanceMeshes();
@@ -217,6 +221,7 @@ export class ChessSceneManager {
       camera: this.camera,
       startInGame: options.startInGame,
       getSide: () => this.studySide,
+      hasOpponentFrame: () => this.opponentFrame.group.visible,
       onComplete: (sel) => this.onStudyCompleteCallback?.(sel),
       onConfirm: (sel) => this.onStudyConfirmCallback?.(sel),
       onProfileApply: (sel) => this.onProfileApplyCallback?.(sel),
@@ -2178,6 +2183,23 @@ export class ChessSceneManager {
 
   // --- CAMERA CONTROLS & PRESETS ---
 
+  /** An online duel: the opponent's camera stands across the table (null takes it away) */
+  public setOpponentVideo(stream: MediaStream | null, mySide: 'w' | 'b') {
+    const had = this.opponentFrame.group.visible;
+    this.opponentFrame.setStream(stream);
+    // The playing view pulls back a little while the frame is up, so it fits above the board
+    if (had !== !!stream && (this.currentPreset === 'white' || this.currentPreset === 'black')) this.setCameraPreset(this.currentPreset);
+    this.placeOpponentFrame(mySide);
+  }
+
+  private placeOpponentFrame(mySide: 'w' | 'b' = this.studySide) {
+    if (!this.opponentFrame.group.visible) return;
+    const v = this.study.gameView();
+    const eye = this.camera.clone();
+    eye.position.copy(v.pos);
+    this.opponentFrame.place(mySide, eye);
+  }
+
   public setCameraPreset(preset: CameraPreset, animated = true) {
     const nextTargetPos = new THREE.Vector3();
     const nextTargetLookAt = new THREE.Vector3(0, 0, 0);
@@ -2422,6 +2444,15 @@ export class ChessSceneManager {
     // The study renders through its own pipeline (AO, grade); nothing is drawn until it has loaded,
     // or while a full-screen overlay has asked for the frames (renderHold)
     if (!isSceneRenderHeld()) this.study.tick();
+    // The player's own camera tile matches the opponent's frame on screen (read by CSS as --opp-frame-w/h)
+    const fs = this.opponentFrame.tick(this.camera, this.container.clientWidth, this.container.clientHeight);
+    const key = fs ? `${Math.round(fs.w)}x${Math.round(fs.h)}` : '';
+    if (key !== this.frameSize) {
+      this.frameSize = key;
+      const root = document.documentElement.style;
+      if (fs) { root.setProperty('--opp-frame-w', `${Math.round(fs.w)}px`); root.setProperty('--opp-frame-h', `${Math.round(fs.h)}px`); }
+      else { root.removeProperty('--opp-frame-w'); root.removeProperty('--opp-frame-h'); }
+    }
     this.animationFrameId = requestAnimationFrame(this.animate);
   };
 
@@ -2446,6 +2477,7 @@ export class ChessSceneManager {
       });
     });
 
+    this.opponentFrame.dispose();
     this.study.dispose();
     this.renderer.dispose();
     this.composer.dispose();

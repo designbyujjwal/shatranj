@@ -108,6 +108,13 @@ async function startServer() {
     res.json({ status: 'ok', activeRooms: rooms.size });
   });
 
+  // Relay (TURN) servers for players whose networks block a direct call. Set TURN_URLS (comma separated),
+  // TURN_USERNAME and TURN_CREDENTIAL on the host; without them the call tries a direct link only.
+  app.get('/api/ice', (_req, res) => {
+    const urls = (process.env.TURN_URLS || '').split(',').map((u) => u.trim()).filter(Boolean);
+    res.json({ iceServers: urls.length ? [{ urls, username: process.env.TURN_USERNAME, credential: process.env.TURN_CREDENTIAL }] : [] });
+  });
+
   // Room metadata query
   app.get('/api/room/:roomId', (req, res) => {
     const { roomId } = req.params;

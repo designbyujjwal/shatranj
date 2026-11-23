@@ -1,6 +1,6 @@
 import type { Square } from 'chess.js';
 import type { PieceColor, MoveRecord, OnlineOpponent } from '../types';
-import { duelSocketUrl } from './duelServer';
+import { duelSocketUrl, duelApiUrl } from './duelServer';
 
 export interface MultiplayerCallbacks {
   onRoomJoined?: (data: {
@@ -52,6 +52,14 @@ const RTC_CONFIG: RTCConfiguration = {
   iceCandidatePoolSize: 10,
 };
 
+// Relay servers come from the duel server (/api/ice), so their credentials stay out of the game's code
+let relayServers: Promise<RTCIceServer[]> | null = null;
+const loadRelayServers = () =>
+  (relayServers ??= fetch(duelApiUrl('/api/ice'))
+    .then((r) => (r.ok ? r.json() : { iceServers: [] }))
+    .then((j) => (Array.isArray(j.iceServers) ? j.iceServers : []))
+    .catch(() => []));
+
 class MultiplayerService {
   private ws: WebSocket | null = null;
   private pc: RTCPeerConnection | null = null;
@@ -74,6 +82,8 @@ class MultiplayerService {
   private ignoreOffer = false;
   private isPolite = false;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
+  private messageQueue: Promise<void> = Promise.resolve();
+  private relayIce: RTCIceServer[] = [];
   private mediaPromise: Promise<MediaStream | null> | null = null;
 
   public setCallbacks(callbacks: MultiplayerCallbacks) {
@@ -97,6 +107,12 @@ class MultiplayerService {
   }
 
   public setLocalStream(stream: MediaStream) {
+    // The hand tracker hands over its camera alone: keep the microphone we already have, so the voice still goes out
+    if (!stream.getAudioTracks().length && this.localStream) {
+      const merged = new MediaStream(stream.getVideoTracks());
+      this.localStream.getAudioTracks().forEach((t) => merged.addTrack(t));
+      stream = merged;
+    }
     this.localStream = stream;
     this.callbacks.onLocalStream?.(stream);
     if (this.pc) {
@@ -177,19 +193,13 @@ class MultiplayerService {
    */
   private attachLocalTracksToPC(stream: MediaStream) {
     if (!this.pc) return;
-    const senders = this.pc.getSenders();
-    stream.getTracks().forEach((track) => {
-      const existingSender = senders.find((s) => s.track?.kind === track.kind);
-      if (existingSender) {
-        existingSender.replaceTrack(track).catch((err) => {
-          console.warn('[Multiplayer] replaceTrack error:', err);
-        });
-      } else {
-        try {
-          this.pc?.addTrack(track, stream);
-        } catch (err) {
-          console.warn('[Multiplayer] addTrack error:', err);
-        }
+    // One audio and one video transceiver per call: tracks go in with replaceTrack, which needs no new offer
+    this.pc.getTransceivers().forEach((tr) => {
+      if (tr.currentDirection === 'stopped') return;
+      const kind = tr.receiver.track.kind;
+      const track = kind === 'audio' ? stream.getAudioTracks()[0] : stream.getVideoTracks()[0];
+      if (track && tr.sender.track !== track) {
+        tr.sender.replaceTrack(track).catch((err) => console.warn('[Multiplayer] replaceTrack error:', err));
       }
     });
   }
@@ -206,6 +216,7 @@ class MultiplayerService {
     this.currentRoomId = roomId;
     this.isIntentionalDisconnect = false;
     this.lastJoinParams = { roomId, playerName, preferredSide, controlMode };
+    loadRelayServers().then((servers) => { this.relayIce = servers; });
 
     // Start local camera media in parallel
     this.initLocalMedia().catch((err) => {
@@ -260,7 +271,9 @@ class MultiplayerService {
       this.ws.onmessage = async (event) => {
         try {
           const msg = JSON.parse(event.data);
-          await this.handleMessage(msg);
+          this.messageQueue = this.messageQueue.then(() => this.handleMessage(msg)).catch((err) => {
+            console.error('[Multiplayer] Error handling WS message:', err);
+          });
         } catch (err) {
           console.error('[Multiplayer] Error processing WS message:', err);
         }
@@ -316,13 +329,13 @@ class MultiplayerService {
 
     // Black is the polite peer; White is impolite (breaks symmetry/glare)
     this.isPolite = this.mySide === 'b';
-    this.pendingIceCandidates = [];
+    this.remoteStream = null;
     this.makingOffer = false;
     this.ignoreOffer = false;
 
     console.log(`[Multiplayer] Initializing WebRTC Peer Connection (isPolite: ${this.isPolite})`);
 
-    const pc = new RTCPeerConnection(RTC_CONFIG);
+    const pc = new RTCPeerConnection({ ...RTC_CONFIG, iceServers: [...RTC_CONFIG.iceServers!, ...this.relayIce] });
     this.pc = pc;
 
     // Create low-latency P2P DataChannel for real-time move sync
@@ -340,12 +353,14 @@ class MultiplayerService {
       this.setupDataChannel(event.channel);
     };
 
-    // Transceivers guarantee SDP negotiates both video and audio channels from the first offer
-    try {
-      pc.addTransceiver('video', { direction: 'sendrecv' });
-      pc.addTransceiver('audio', { direction: 'sendrecv' });
-    } catch (err) {
-      console.warn('[Multiplayer] Transceiver notice:', err);
+    // White offers one video and one audio transceiver; Black answers on the ones the offer creates (see signal_offer)
+    if (!this.isPolite) {
+      try {
+        pc.addTransceiver('video', { direction: 'sendrecv' });
+        pc.addTransceiver('audio', { direction: 'sendrecv' });
+      } catch (err) {
+        console.warn('[Multiplayer] Transceiver notice:', err);
+      }
     }
 
     // Attach existing local tracks
@@ -371,6 +386,7 @@ class MultiplayerService {
 
     // Receive remote media tracks
     pc.ontrack = (event) => {
+      if (this.pc !== pc) return;
       console.log('[Multiplayer] ontrack received:', event.track.kind, event.track.id);
 
       if (!this.remoteStream) {
@@ -398,7 +414,7 @@ class MultiplayerService {
 
     // Gather and send ICE candidates
     pc.onicecandidate = (event) => {
-      if (event.candidate) {
+      if (event.candidate && this.pc === pc) {
         this.sendSignal('signal_ice', event.candidate);
       }
     };
@@ -503,6 +519,7 @@ class MultiplayerService {
 
       case 'player_left': {
         this.callbacks.onPlayerLeft?.(msg.side);
+        this.pendingIceCandidates = [];
         this.remoteStream = null;
         this.callbacks.onRemoteStream?.(null);
         if (this.pc) {
@@ -574,6 +591,10 @@ class MultiplayerService {
 
         try {
           await this.pc!.setRemoteDescription(new RTCSessionDescription(offer));
+          this.pc!.getTransceivers().forEach((tr) => {
+            if (tr.direction !== 'stopped' && tr.direction !== 'sendrecv') tr.direction = 'sendrecv';
+          });
+          if (this.localStream) this.attachLocalTracksToPC(this.localStream);
           await this.flushPendingIceCandidates();
           await this.pc!.setLocalDescription();
           if (this.pc!.localDescription) {

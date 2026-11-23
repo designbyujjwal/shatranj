@@ -38,6 +38,7 @@ export interface StudyOptions {
   onProfileClosed?: (order: StudyOrder | null) => void;   // profile chapter: back at the board, with the standing order that was tapped (if any)
   startInGame?: boolean;
   getSide?: () => 'w' | 'b';                          // which chair the playing view is from
+  hasOpponentFrame?: () => boolean;                   // an online duel shows the opponent's camera across the table
 }
 
 export function createStudyWorld(opts: StudyOptions) {
@@ -1471,8 +1472,9 @@ export function createStudyWorld(opts: StudyOptions) {
     }
     if (m === 'game') {   // playing view: high, centred behind White, the whole board large on screen so pieces are easy to pick out and grab
       const t2 = 2 * Math.tan(camera.fov * Math.PI / 360), el = .88;   // a little lower and closer, so the pieces get more pixels
-      const d = Math.max(.53 / t2, .6 / (camera.aspect * t2));   // fit the board plus the height of Black's back rank
+      let d = Math.max(.53 / t2, .6 / (camera.aspect * t2));   // fit the board plus the height of Black's back rank
       const target = new THREE.Vector3(0, .025, .035);   // board sits a little high, clear of the status bar
+      if (opts.hasOpponentFrame?.()) { d *= 1.25; target.y += .04; target.z -= .08; }   // step back and look up a little: the opponent's frame stands past the far edge
       const pos = target.clone().add(new THREE.Vector3(0, Math.sin(el) * d, Math.cos(el) * d));
       if (opts.getSide?.() === 'b') { pos.z *= -1; target.z *= -1; }
       return { pos, target, focus: d };

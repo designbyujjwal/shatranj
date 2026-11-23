@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { assetUrl } from '../utils/assetUrl';
 import { royalBattleMusic } from '../utils/music';
 import { createIntroScore } from '../utils/introScore';
+import { holdSceneRender } from '../three/renderHold';
 import { IntroSword3D, SETTLED_MS, CLOSE_MS } from './IntroSword3D';
 
 /**
@@ -120,9 +121,14 @@ export const IntroSplash: React.FC<{ hold?: boolean }> = ({ hold = false }) => {
     if (!show || !ready || !entered) return;
     const started = performance.now();
     let done = false;
+    // The study behind stops drawing while the shot, the flash and the sheen run, so they get every frame; it comes
+    // back just before the title hands over, in time to lift its veil (the hand-over waits for that)
+    const release = holdSceneRender();
+    const resume = window.setTimeout(release, HOLD_UNTIL - 500);
     const leave = () => {
       if (done) return;
       done = true;
+      release();
       setLeaving(true);
       // The intro music plays on to its last chord over the study, then the ambient bed creeps in
       scoreRef.current?.finish();
@@ -145,6 +151,8 @@ export const IntroSplash: React.FC<{ hold?: boolean }> = ({ hold = false }) => {
     window.addEventListener('keydown', skip);
     return () => {
       window.clearInterval(timer);
+      window.clearTimeout(resume);
+      release();
       window.removeEventListener('pointerdown', skip);
       window.removeEventListener('keydown', skip);
     };
@@ -170,12 +178,17 @@ export const IntroSplash: React.FC<{ hold?: boolean }> = ({ hold = false }) => {
             ))}
             <Crop box={TAGLINE} className="intro-tagline" style={{ animationDelay: `${LETTER_START + 2300}ms` }} />
           </div>
-          <div className="intro-flash" style={{ left: `${HILT.x}%`, top: `${HILT.y}%`, animationDelay: `${IMPACT}ms` }} />
-          <div className="intro-sheen" style={{ maskImage: SHEEN_MASK, WebkitMaskImage: SHEEN_MASK, maskComposite: 'intersect', WebkitMaskComposite: 'source-in', animationDelay: `${LETTER_START + 3800}ms` }} />
         </div>
       </div>
       <IntroSword3D className="intro-sword3d" playing={ready && entered} logoRef={logoRef} onStart={startScore}
         onSettled={(frame, layer) => { if (logoImgRef.current && logoRef.current) keepSword(logoImgRef.current, logoRef.current, frame, layer); }} />
+      {/* The flash and the sheen sit over the 3D sword (the stage above sits under it), lined up with the logo */}
+      <div className="intro-stage intro-stage-over">
+        <div className="intro-logo">
+          <div className="intro-flash" style={{ left: `${HILT.x}%`, top: `${HILT.y}%`, animationDelay: `${IMPACT}ms` }} />
+          <div className="intro-sheen" style={{ maskImage: SHEEN_MASK, WebkitMaskImage: SHEEN_MASK, maskComposite: 'intersect', WebkitMaskComposite: 'source-in', animationDelay: `${LETTER_START + 3800}ms` }} />
+        </div>
+      </div>
       <div className="intro-grain" />
       <div className="intro-vignette" />
     </div>

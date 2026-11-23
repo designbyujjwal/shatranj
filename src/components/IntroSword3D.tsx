@@ -543,7 +543,10 @@ const closePose = (ms: number, pos: THREE.Vector3, aim: THREE.Vector3) => {
   // Drifts against the blade's turn, so the overhead lamp's reflection never lines up across the Hindi
   pos.set(-Math.sin(ms / 2900) * 16, y + 26, 104 + Math.sin(ms / 3700) * 8);
 };
-const closeTurn = (ms: number) => Math.sin(ms / 1000 * .45) * .14;
+// Kept small: turned further, the steel catches the window and goes white behind the English
+const closeTurn = (ms: number) => Math.sin(ms / 1000 * .45) * .06;
+// The steel's reflections dim further over the English, near the point, so its gold letters still burn against it
+const closeEnv = (ms: number) => .36 - .16 * THREE.MathUtils.smoothstep(ms, 8500, CLOSE_MS);
 const closeRoll = (ms: number) => Math.PI / 2 + Math.sin(ms / 3100) * .04;
 const sway = (ms: number) => Math.sin(((ms - SETTLED_MS) / 1000) * .42) * .3;   // the slow turn once it stands in the T
 
@@ -568,7 +571,7 @@ export const IntroSword3D: React.FC<{
     const host = mount.current;
     if (!host) return;
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, premultipliedAlpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));   // past 1.5 the frame rate drops on laptops and nothing looks sharper through the grain
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
@@ -682,7 +685,7 @@ export const IntroSword3D: React.FC<{
         sweep.position.set(aim.x + Math.sin(ms / 1400) * 60, aim.y + 40, 34);
         sweep.intensity = 140;   // kept soft up close, so the glowing letters outshine the steel
         renderer.toneMappingExposure = .66;
-        bladeMat.envMapIntensity = .36;   // darker reflections up close, so the steel keeps its contrast and the letters glow
+        bladeMat.envMapIntensity = closeEnv(ms);   // darker reflections up close, so the steel keeps its contrast and the letters glow
         golds.forEach((m) => { m.envMapIntensity = GOLD_CLOSE; });   // the guard up close catches more of the warm hall, so it reads as gold, not bronze
         glintOn = 1;
       } else {
@@ -701,7 +704,7 @@ export const IntroSword3D: React.FC<{
           .lerp(V(closeAim.x + Math.sin(ms / 1400) * 60, closeAim.y + 40, 34), 1 - e);
         sweep.intensity = 900 - 760 * (1 - e);
         renderer.toneMappingExposure = .66 + .49 * e;
-        bladeMat.envMapIntensity = .36 + .89 * e;
+        bladeMat.envMapIntensity = closeEnv(ms) + (1.25 - closeEnv(ms)) * e;
         golds.forEach((m) => { m.envMapIntensity = GOLD_CLOSE + (GOLD_FAR - GOLD_CLOSE) * e; });
         glintOn = Math.max(0, 1 - p * 2);
       }

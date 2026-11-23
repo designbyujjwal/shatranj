@@ -14,6 +14,7 @@ class ChessAudioEngine {
       const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioContextClass) {
         this.ctx = new AudioContextClass();
+        this.decodeCaptureSound(this.ctx);   // ready by the first capture
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
@@ -22,137 +23,157 @@ class ChessAudioEngine {
     return this.ctx;
   }
 
+  /** A burst of filtered noise with a soft attack: the felt, wood and air textures below are built from it */
+  private noiseBurst(ctx: AudioContext, at: number, length: number, type: BiquadFilterType, freq: number, q: number, level: number, attack = 0.004) {
+    const frames = Math.max(1, Math.floor(ctx.sampleRate * length));
+    const buffer = ctx.createBuffer(1, frames, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = type;
+    filter.frequency.value = freq;
+    filter.Q.value = q;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(level, at + attack);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(at);
+    src.stop(at + length + 0.01);
+  }
+
+  /** A struck resonance of the board or the piece: a sine that rings briefly and dies */
+  private ring(ctx: AudioContext, at: number, freq: number, length: number, level: number) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq * 1.04, at);
+    osc.frequency.exponentialRampToValueAtTime(freq, at + 0.02);
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(level, at + 0.003);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(at);
+    osc.stop(at + length + 0.01);
+  }
+
+  /** Picking a piece up: the felt base slides off the board with a faint wooden tick */
   public playLiftSound() {
     const ctx = this.getContext();
     if (!ctx) return;
     try {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
       const now = ctx.currentTime;
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(240, now);
-      osc.frequency.exponentialRampToValueAtTime(420, now + 0.12);
-
-      gain.gain.setValueAtTime(0.01, now);
-      gain.gain.linearRampToValueAtTime(0.08, now + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start(now);
-      osc.stop(now + 0.15);
+      this.noiseBurst(ctx, now, 0.11, 'bandpass', 1100 + Math.random() * 300, 0.9, 0.05, 0.03);
+      this.noiseBurst(ctx, now + 0.005, 0.025, 'bandpass', 2600, 1.5, 0.025);
     } catch {
       // Audio error suppressed
     }
   }
 
+  /** The hand closing on a piece: a soft touch, barely there */
   public playPinchEngage() {
     const ctx = this.getContext();
     if (!ctx) return;
     try {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const now = ctx.currentTime;
-
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(520, now);
-      osc.frequency.exponentialRampToValueAtTime(880, now + 0.05);
-
-      gain.gain.setValueAtTime(0.06, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start(now);
-      osc.stop(now + 0.07);
+      this.noiseBurst(ctx, ctx.currentTime, 0.03, 'bandpass', 1800, 1.2, 0.03, 0.006);
     } catch {
       // Audio error suppressed
     }
   }
 
+  /** The hand letting go: a short breath of air */
   public playPinchRelease() {
     const ctx = this.getContext();
     if (!ctx) return;
     try {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const now = ctx.currentTime;
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(480, now);
-      osc.frequency.exponentialRampToValueAtTime(320, now + 0.06);
-
-      gain.gain.setValueAtTime(0.04, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start(now);
-      osc.stop(now + 0.08);
+      this.noiseBurst(ctx, ctx.currentTime, 0.05, 'lowpass', 900, 0.6, 0.025, 0.012);
     } catch {
       // Audio error suppressed
     }
   }
 
+  /** Setting a piece down: a weighted, felt-muffled knock on a wooden board, slightly different every time */
   public playMoveSound() {
     const ctx = this.getContext();
     if (!ctx) return;
     try {
       const now = ctx.currentTime;
-
-      // Deep wood strike body
-      const osc = ctx.createOscillator();
-      const oscGain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(140, now);
-      osc.frequency.exponentialRampToValueAtTime(55, now + 0.08);
-
-      oscGain.gain.setValueAtTime(0.25, now);
-      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-
-      osc.connect(oscGain);
-      oscGain.connect(ctx.destination);
-
-      // Wooden impact noise burst
-      const bufferSize = ctx.sampleRate * 0.06;
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const output = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        output[i] = Math.random() * 2 - 1;
-      }
-
-      const noise = ctx.createBufferSource();
-      noise.buffer = buffer;
-
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(850, now);
-      filter.frequency.exponentialRampToValueAtTime(200, now + 0.06);
-
-      const noiseGain = ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.18, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-
-      noise.connect(filter);
-      filter.connect(noiseGain);
-      noiseGain.connect(ctx.destination);
-
-      osc.start(now);
-      noise.start(now);
-      osc.stop(now + 0.14);
-      noise.stop(now + 0.08);
+      const v = 0.94 + Math.random() * 0.12;   // no two pieces land quite alike
+      this.noiseBurst(ctx, now, 0.04, 'lowpass', 1600 * v, 0.7, 0.16, 0.002);   // the contact
+      this.ring(ctx, now, 170 * v, 0.13, 0.16);   // the board's body
+      this.ring(ctx, now, 410 * v, 0.07, 0.06);   // the piece itself
+      this.noiseBurst(ctx, now + 0.045, 0.03, 'lowpass', 900 * v, 0.7, 0.03, 0.002);   // a tiny settle
     } catch {
       // Audio error suppressed
     }
   }
 
+  // The capture sound: the "small rock break" recording (lordsonny), played a little low and cut after the rubble settles.
+  // Until it has loaded, the synthesized crack below plays instead.
+  private static ROCK_URL = assetUrl('sounds/rock-break.mp3');
+  private static ROCK_VOLUME = 0.18;  // the recording is mastered loud
+  private static ROCK_LENGTH = 2.6;   // the last 1.5 s is near silence
+  private rockBytes: Promise<ArrayBuffer | null> | null = null;
+  private rock: AudioBuffer | null = null;
+  private rockDecoding = false;
+
+  /** Fetch the rock-break recording early (no audio context needed) */
+  public preloadCaptureSound() {
+    if (!this.rockBytes) {
+      this.rockBytes = fetch(ChessAudioEngine.ROCK_URL)
+        .then((r) => (r.ok && (r.headers.get('content-type') || '').includes('audio') ? r.arrayBuffer() : null))
+        .catch(() => null);
+    }
+  }
+
+  private decodeCaptureSound(ctx: AudioContext) {
+    if (this.rock || this.rockDecoding) return;
+    this.rockDecoding = true;
+    this.preloadCaptureSound();
+    this.rockBytes!
+      .then((b) => (b ? ctx.decodeAudioData(b.slice(0)) : null))
+      .then((buf) => { this.rock = buf; })
+      .catch(() => {});
+  }
+
   public playCaptureSound() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.decodeCaptureSound(ctx);
+    if (this.rock) {
+      try {
+        const now = ctx.currentTime;
+        const len = Math.min(ChessAudioEngine.ROCK_LENGTH, this.rock.duration);
+        const src = ctx.createBufferSource();
+        src.buffer = this.rock;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, now);
+        g.gain.exponentialRampToValueAtTime(ChessAudioEngine.ROCK_VOLUME, now + 0.02);   // eases in, so the hit isn't sharp
+        g.gain.setValueAtTime(ChessAudioEngine.ROCK_VOLUME, now + len - 0.9);
+        g.gain.exponentialRampToValueAtTime(0.001, now + len);
+        const soften = ctx.createBiquadFilter();   // rounds off the harsh top end
+        soften.type = 'lowpass';
+        soften.frequency.value = 3200;
+        soften.Q.value = 0.5;
+        src.connect(soften);
+        soften.connect(g);
+        g.connect(ctx.destination);
+        src.start(now);
+        src.stop(now + len + 0.02);
+        return;
+      } catch {
+        // fall through to the synthesized crack
+      }
+    }
+    this.playSynthCaptureSound(ctx);
+  }
+
+  private playSynthCaptureSound(ctx: AudioContext) {
     try {
       const now = ctx.currentTime;
       const out = ctx.createGain();
@@ -181,28 +202,20 @@ class ChessAudioEngine {
         src.stop(at + length + 0.01);
       };
 
-      // 1. The blow: a dull knock of stone on stone
-      const knock = ctx.createOscillator();
-      const knockGain = ctx.createGain();
-      knock.type = 'triangle';
-      knock.frequency.setValueAtTime(190, now);
-      knock.frequency.exponentialRampToValueAtTime(60, now + 0.12);
-      knockGain.gain.setValueAtTime(0.32, now);
-      knockGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
-      knock.connect(knockGain);
-      knockGain.connect(out);
-      knock.start(now);
-      knock.stop(now + 0.18);
+      // 1. The blow: a dry, unpitched thud, so it doesn't sound like an ordinary move
+      burst(now, 0.09, 'lowpass', 380, 0.6, 0.5);
 
-      // 2. The crack: a bright, sharp split
-      burst(now, 0.07, 'bandpass', 2400, 1.2, 0.38);
-      burst(now + 0.004, 0.16, 'lowpass', 700, 0.7, 0.22);
+      // 2. The crack: two sharp splits, a hair apart, like stone giving way
+      burst(now + 0.01, 0.05, 'bandpass', 3200, 2.5, 0.55);
+      burst(now + 0.035, 0.08, 'bandpass', 1700, 1.8, 0.42);
 
-      // 3. The grit: small chips landing just after
-      const chips = 5;
-      for (let i = 0; i < chips; i++) {
-        const at = now + 0.06 + i * 0.035 + Math.random() * 0.03;
-        burst(at, 0.018 + Math.random() * 0.012, 'highpass', 2800 + Math.random() * 2500, 0.8, 0.12 * (1 - i / (chips + 1)));
+      // 3. The crumble: rubble falling and settling while the shards drop
+      const chunks = 12;
+      for (let i = 0; i < chunks; i++) {
+        const at = now + 0.12 + i * 0.055 + Math.random() * 0.04;
+        const fade = 1 - i / (chunks + 2);
+        burst(at, 0.025 + Math.random() * 0.03, 'bandpass', 700 + Math.random() * 1300, 1.4, 0.26 * fade);
+        if (i % 2 === 0) burst(at + 0.01, 0.015, 'highpass', 3500 + Math.random() * 2500, 0.8, 0.1 * fade);
       }
     } catch {
       // Audio error suppressed
@@ -462,3 +475,4 @@ class ChessAudioEngine {
 }
 
 export const soundEffects = new ChessAudioEngine();
+if (typeof window !== 'undefined') soundEffects.preloadCaptureSound();

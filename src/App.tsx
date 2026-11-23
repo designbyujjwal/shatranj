@@ -683,6 +683,8 @@ export default function App() {
   const handleSetGameMode = (mode: GameMode) => {
     if (mode !== 'online' && gameMode === 'online') {
       multiplayer.leaveRoom();
+      setRemoteStream(null);
+      setLocalStream(null);
       setMultiplayerState((prev) => ({
         ...prev,
         roomId: null,
@@ -1554,9 +1556,10 @@ export default function App() {
     });
     setShowControlModeModal(false);
     setShowMatchSetupModal(false);
+    if (gameMode === 'online') handleSetGameMode('vs-bot');   // signing out leaves the duel too
     setShowOnboarding(true);
     handleResetGame();
-  }, [handleResetGame]);
+  }, [handleResetGame, gameMode]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div id="spatial-chess-app" className="relative w-screen h-screen bg-[#050403] overflow-hidden select-none">
@@ -1604,7 +1607,11 @@ export default function App() {
         onResetGame={handleResetGame}
         onOpenHowToPlay={() => setShowHowToPlay(true)}
         onOpenSettings={() => setShowSettings(true)}
-        onOpenOnboarding={() => setShowOnboarding(true)}
+        onOpenOnboarding={() => {
+          // Back in the study means the duel is over for you: leave the room, so the rival's card goes too
+          if (gameMode === 'online') handleSetGameMode('vs-bot');
+          setShowOnboarding(true);
+        }}
         onSignOut={handleSignOut}
         onOpenProfile={handleOpenProfileBook}
       />

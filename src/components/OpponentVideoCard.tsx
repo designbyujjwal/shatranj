@@ -271,6 +271,53 @@ export const OpponentVideoCard: React.FC<OpponentVideoCardProps> = ({
             )}
           </div>
 
+        </div>
+      </div>
+
+      {/* 2. Your own camera: the same parchment card, in your corner at bottom left */}
+      <div className="absolute bottom-4 left-4 sm:left-6 z-30 pointer-events-auto select-none">
+        <div id="self-video-card" className="hud-paper relative w-52 sm:w-60 md:w-68 rounded-xl p-2.5 sm:p-3">
+          <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-[#7d481b]/20">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className={`h-2 w-2 shrink-0 rounded-full ${localStream ? 'bg-[#b4893a]' : 'bg-[#7d481b]/40'}`} />
+              <span className="font-cinzel font-bold text-[11px] tracking-wider uppercase text-[#1f0d04] truncate">You</span>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-[10px] font-cinzel uppercase tracking-wider text-[#821e25] bg-[#821e25]/10 border border-[#7d481b]/40 px-2 py-0.5 rounded font-bold">
+                {mySide === 'w' ? 'White' : 'Black'}
+              </span>
+              <button
+                type="button"
+                onClick={toggleLocalMic}
+                className={isMicMuted ? ICON_BUTTON_OFF : ICON_BUTTON}
+                title={isMicMuted ? 'Unmute Mic' : 'Mute Mic'}
+              >
+                {isMicMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+              </button>
+              <button
+                type="button"
+                onClick={toggleLocalVideo}
+                className={isVideoOff ? ICON_BUTTON_OFF : ICON_BUTTON}
+                title={isVideoOff ? 'Turn Camera On' : 'Turn Camera Off'}
+              >
+                {isVideoOff ? <VideoOff className="w-3.5 h-3.5" /> : <Video className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="relative w-full aspect-4/3 bg-[#26150b] rounded-lg flex items-center justify-center overflow-hidden border border-[#7d481b]/30 shadow-inner">
+            <video
+              ref={localVideoRef}
+              autoPlay
+              muted
+              playsInline
+              className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 ${
+                isVideoOff || !localStream ? 'opacity-0' : 'opacity-100'
+              }`}
+            />
+            {(isVideoOff || !localStream) && <VideoOff className="w-6 h-6 text-[#d9b98a]/70" />}
+          </div>
+
           {/* Online Match Quick In-Game Actions */}
           <div className="mt-2 pt-2 border-t border-[#7d481b]/20 flex items-center justify-between gap-1.5">
             <button
@@ -295,46 +342,6 @@ export const OpponentVideoCard: React.FC<OpponentVideoCardProps> = ({
             >
               Resign
             </button>
-          </div>
-        </div>
-
-        {/* 2. Self Camera PiP (Picture-in-Picture), the same parchment card */}
-        <div className="hud-paper mt-3 relative flex items-center gap-2.5 rounded-xl p-2">
-          <div className="relative w-16 h-12 rounded-lg overflow-hidden bg-[#26150b] border border-[#7d481b]/30 shadow-inner flex items-center justify-center">
-            <video
-              ref={localVideoRef}
-              autoPlay
-              muted
-              playsInline
-              className={`w-full h-full object-cover transform -scale-x-100 ${
-                isVideoOff || !localStream ? 'opacity-0 absolute' : 'opacity-100'
-              }`}
-            />
-            {(isVideoOff || !localStream) && <VideoOff className="w-4 h-4 text-[#d9b98a]/70" />}
-          </div>
-
-          <div className="flex flex-col gap-1 pr-1">
-            <span className="font-cinzel font-bold text-[10px] uppercase tracking-wider text-[#7d481b]">
-              You &middot; <span className="text-[#821e25]">{mySide === 'w' ? 'White' : 'Black'}</span>
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={toggleLocalMic}
-                className={isMicMuted ? ICON_BUTTON_OFF : ICON_BUTTON}
-                title={isMicMuted ? 'Unmute Mic' : 'Mute Mic'}
-              >
-                {isMicMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-              </button>
-              <button
-                type="button"
-                onClick={toggleLocalVideo}
-                className={isVideoOff ? ICON_BUTTON_OFF : ICON_BUTTON}
-                title={isVideoOff ? 'Turn Camera On' : 'Turn Camera Off'}
-              >
-                {isVideoOff ? <VideoOff className="w-3.5 h-3.5" /> : <Video className="w-3.5 h-3.5" />}
-              </button>
-            </div>
           </div>
         </div>
       </div>

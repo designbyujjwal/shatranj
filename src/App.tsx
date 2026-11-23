@@ -602,22 +602,6 @@ export default function App() {
     });
   }, [multiplayerState.mySide, updateCapturedPieces]);
 
-  // Online duel: the opponent's camera stands in a frame across the table
-  useEffect(() => {
-    const side = multiplayerState.mySide === 'b' ? 'b' : 'w';
-    const live = gameMode === 'online' && remoteStream && remoteStream.getVideoTracks().length > 0 ? remoteStream : null;
-    sceneManagerRef.current?.setOpponentVideo(live, side);
-  }, [gameMode, remoteStream, multiplayerState.mySide]);
-
-  // Your own camera, in your corner at the size the opponent's frame has on screen
-  const selfFrameRef = useRef<HTMLVideoElement>(null);
-  useEffect(() => {
-    const el = selfFrameRef.current;
-    if (!el) return;
-    el.srcObject = localStream;
-    if (localStream) el.play().catch(() => {});
-  }, [localStream, remoteStream, gameMode]);
-
   // Launch online match & join room
   const handleStartOnlineMatch = (
     roomId: string,
@@ -1692,6 +1676,7 @@ export default function App() {
           moves={moves}
           trackingState={trackingState}
           onJumpToMove={handleJumpToMove}
+          placement={gameMode === 'online' ? 'left' : 'right'}
         />
       )}
 
@@ -1782,12 +1767,6 @@ export default function App() {
           setShowOnboarding(true);
         }}
       />
-
-      {gameMode === 'online' && remoteStream && localStream && (
-        <div className="self-frame" aria-label="Your camera">
-          <video ref={selfFrameRef} autoPlay muted playsInline />
-        </div>
-      )}
 
       {/* Peer-to-Peer Online Real-Time Webcam & Match Control Folio Card */}
       {gameMode === 'online' && (

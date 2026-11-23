@@ -6,10 +6,11 @@ interface MoveHistoryProps {
   moves: MoveRecord[];
   trackingState?: HandTrackingState;
   onJumpToMove?: (moveIndex: number) => void;
+  placement?: 'left' | 'right';
 }
 
 // A quiet running feed of the game: each move arrives at the bottom and the older ones drift up, like a chat
-export const MoveHistory: React.FC<MoveHistoryProps> = ({ moves, onJumpToMove }) => {
+export const MoveHistory: React.FC<MoveHistoryProps> = ({ moves, onJumpToMove, placement = 'right' }) => {
   const [isOpen, setIsOpen] = useState(true);
   const listRef = useRef<HTMLDivElement | null>(null);
 
@@ -24,7 +25,7 @@ export const MoveHistory: React.FC<MoveHistoryProps> = ({ moves, onJumpToMove })
   return (
     <div
       id="move-history-container"
-      className="fixed top-20 sm:top-22 right-6 sm:right-10 z-30 w-52 select-none text-[#f4ece1] [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]"
+      className={`fixed top-20 sm:top-22 ${placement === 'left' ? 'left-6 sm:left-10' : 'right-6 sm:right-10'} z-30 w-52 select-none text-[#f4ece1] [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]`}
     >
       {/* Soft dark haze behind the text: feathered on every side, so no box edge shows */}
       <div className="chronicle-haze absolute -inset-5 -z-10 pointer-events-none" aria-hidden="true" />

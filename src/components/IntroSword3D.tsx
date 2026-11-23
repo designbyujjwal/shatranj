@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 /**
  * The intro's sword as a real 3D model: polished steel blade with engraved, gold-lit glyphs,
@@ -97,7 +96,19 @@ function bladeMaps() {
   // Two lines written down the blade. Rotated a quarter turn, so the first line sits on the +x side:
   // the close-up turns the camera the same way, and the words read left to right on screen
   const inscribe = (top: number, len: number, lines: string[], font: string, spacing: string) => {
-    const ga = Math.max(.6, glowAt(top + len / 2));
+    const ga = 1;   // every letter burns equally (burnInscription reads full strength as the letters' core)
+    // A wide, soft halo of heat around the letters in the glow map: room for the flames to lick out into
+    lines.forEach((line, i) => {
+      glow.save();
+      glow.translate(lines.length === 1 ? cx + 4 : i === 0 ? cx + 31 : cx - 31, top + len / 2); glow.rotate(Math.PI / 2);
+      glow.font = font; glow.letterSpacing = spacing; glow.textAlign = 'center'; glow.textBaseline = 'middle';
+      // the warm halo the flames lick out into, raised above the letters, since flames climb
+      glow.filter = 'blur(26px)'; glow.fillStyle = 'rgba(255, 196, 92, .75)';
+      glow.fillText(line, 0, 0, len - 20);
+      glow.filter = 'blur(4px)'; glow.fillStyle = 'rgba(255, 196, 92, .7)';
+      glow.fillText(line, 0, 0, len - 20);
+      glow.restore();
+    });
     lines.forEach((line, i) => cut((c) => {
       c.save(); c.translate(lines.length === 1 ? cx + 4 : i === 0 ? cx + 31 : cx - 31, top + len / 2); c.rotate(Math.PI / 2);
       c.font = font; c.letterSpacing = spacing; c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -120,6 +131,7 @@ function bladeMaps() {
     t.anisotropy = 8;
     return t;
   };
+  if (import.meta.env.DEV) (window as unknown as { __glow?: HTMLCanvasElement }).__glow = glowC;   // dev: inspect the glow map
   return { map: tex(colC, true), bumpMap: tex(bumpC, false), emissiveMap: tex(glowC, true) };
 }
 
@@ -325,12 +337,13 @@ function buildSword() {
     emissive: new THREE.Color('#ffae40'), emissiveIntensity: 2.4, clearcoat: .45, clearcoatRoughness: .12, envMapIntensity: 1.25,
     anisotropy: .35, anisotropyRotation: Math.PI / 2,   // brushed along the blade: highlights stretch into long streaks
   }));
+  burnInscription(bladeMat);
   sword.add(new THREE.Mesh(bladeGeo, bladeMat));
 
   // ---- Gold
   const fil = keep(filigreeMap());
-  const gold = keep(new THREE.MeshPhysicalMaterial({ color: '#d9b066', metalness: 1, roughness: .24, bumpMap: fil, bumpScale: 1.1, clearcoat: .5, clearcoatRoughness: .2, envMapIntensity: 1.5 }));
-  const goldPlain = keep(new THREE.MeshPhysicalMaterial({ color: '#e2bb72', metalness: 1, roughness: .18, clearcoat: .6, envMapIntensity: 1.6 }));
+  const gold = keep(new THREE.MeshPhysicalMaterial({ color: '#d9b066', metalness: 1, roughness: .36, bumpMap: fil, bumpScale: 1.1, clearcoat: .5, clearcoatRoughness: .2, envMapIntensity: 3 }));   // satin: it gathers the hall's lights instead of mirroring its dark
+  const goldPlain = keep(new THREE.MeshPhysicalMaterial({ color: '#e2bb72', metalness: 1, roughness: .18, clearcoat: .6, envMapIntensity: 2.4 }));
   const guardFil = keep(fil.clone()); guardFil.repeat.set(5, 1); guardFil.needsUpdate = true;
   const guardGold = keep(gold.clone()); guardGold.bumpMap = guardFil; guardGold.bumpScale = 1.6;
   const ruby = keep(new THREE.MeshPhysicalMaterial({ color: '#b0101c', metalness: 0, roughness: .06, clearcoat: 1, clearcoatRoughness: .03,
@@ -444,7 +457,69 @@ function buildSword() {
   add(new THREE.SphereGeometry(2.6, 18, 12), goldPlain, 0, 167.5, 0);
   add(new THREE.ConeGeometry(1.3, 4.5, 12), goldPlain, 0, 171.5, 0);
 
-  return { sword, bladeMat, disposables };
+  return { sword, bladeMat, golds: [gold, goldPlain, guardGold], disposables };
+}
+
+/**
+ * The engraving burns: wherever the glow map lights the blade (the inscriptions, borders and runes), the emissive
+ * becomes living fire. Noise rises through the letters, so tongues of flame climb them, coloured from deep ember red
+ * through orange to a hot yellow core, with a restless flicker. Set the time each frame with material.userData.fire.
+ */
+function burnInscription(mat: THREE.MeshPhysicalMaterial) {
+  const time = { value: 0 };
+  mat.userData.fire = time;
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uFireTime = time;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+uniform float uFireTime;
+float fireHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float fireNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+  return mix(mix(fireHash(i), fireHash(i + vec2(1, 0)), f.x), mix(fireHash(i + vec2(0, 1)), fireHash(i + vec2(1, 1)), f.x), f.y);
+}
+float fireFbm(vec2 p) { float v = 0., a = .5; for (int i = 0; i < 4; i++) { v += a * fireNoise(p); p = p * 2.03 + 17.1; a *= .5; } return v; }`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+{
+  // The glow map is ~1 in the letters and falls off through the soft halo around them
+  float glowAmt = clamp(totalEmissiveRadiance.r / max(emissive.r, .001), 0., 1.);
+  float t = uFireTime;
+  vec2 q = vec2(vEmissiveMapUv.x * 9., vEmissiveMapUv.y * 104.);
+  // A slow shimmer of heat running through the light, and a faint flicker, so it lives like fire held inside the steel
+  float shimmer = fireFbm(q * .8 + vec2(-t * .6, t * .9));
+  float flick = .9 + .1 * fireNoise(vec2(t * 9., vEmissiveMapUv.y * 20.));
+  float core = smoothstep(.62, .97, glowAmt);              // the heart of each stroke
+  float edge = smoothstep(.45, .85, glowAmt) - core * .6;  // the stroke's rim
+  float bloom = pow(glowAmt, 1.1);                         // the light spilling onto the steel around
+  // kept below the point where the camera's tone curve bleaches orange to white
+  vec3 light = vec3(.9, .14, .005) * bloom * 1.1
+             + vec3(1., .3, .02) * edge * 1.5
+             + vec3(1., .6, .16) * core * (1.05 + .5 * shimmer);
+  totalEmissiveRadiance = light * (.82 + .3 * shimmer) * flick;
+}`);
+  };
+}
+
+/**
+ * What the polished steel reflects: a dark forge hall with a few strong lights, so the blade shows deep shadows and
+ * bright streaks as it turns instead of a flat, even sheen. A long warm lamp overhead, a cool window to the left,
+ * a low fire glow to the right, a small warm softbox near the camera and a faint strip behind.
+ */
+function forgeEnvironment() {
+  const sc = new THREE.Scene();
+  const room = new THREE.Mesh(new THREE.SphereGeometry(80, 32, 16), new THREE.MeshBasicMaterial({ color: '#1c130b', side: THREE.BackSide }));
+  sc.add(room);
+  const panel = (w: number, h: number, color: string, power: number, pos: [number, number, number]) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(power), side: THREE.DoubleSide }));
+    m.position.set(...pos); m.lookAt(0, 0, 0); sc.add(m);
+  };
+  panel(46, 5, '#ffd9a0', 7, [0, 34, 4]);        // the long lamp overhead
+  panel(12, 26, '#b9caff', 2.6, [-34, 6, 12]);   // a tall cool window
+  panel(18, 6, '#ff7a2a', 3.5, [30, -14, 10]);   // the fire, low and warm
+  panel(9, 9, '#fff0d8', 4, [6, 12, 34]);        // a small softbox by the camera
+  panel(22, 14, '#ffc27a', 1.4, [-20, -10, 30]); // warm bounce low on the left, where the guard looks
+  panel(30, 1.4, '#ffe0b0', 1.6, [0, 2, -36]);   // a thin strip behind
+  return sc;
 }
 
 // The pull-out: leaves rest at once (no dead start), peaks a third of the way, then a long soft landing in the T
@@ -457,6 +532,7 @@ const READ_FROM = -14, READ_TO = -290;
 // Past CLOSE_MS the track glides on from the speed it ended on and coasts to rest (DRIFT_MS), so the pull-out
 // takes over a moving camera instead of one that stops dead or snaps back
 const DRIFT_MS = 900;
+const GOLD_CLOSE = 4.5, GOLD_FAR = 3;   // the gold's reflection strength up close and once the sword stands in the T
 const READ_CURVE = 1.35;   // >1: slow at the start, quicker by the end
 const closePose = (ms: number, pos: THREE.Vector3, aim: THREE.Vector3) => {
   // An unhurried start that lets the Hindi be read (about 5 s on it), gathering speed through the English
@@ -464,7 +540,8 @@ const closePose = (ms: number, pos: THREE.Vector3, aim: THREE.Vector3) => {
   const u = k < 1 ? Math.pow(k, READ_CURVE) : 1 + READ_CURVE * (DRIFT_MS / CLOSE_MS) * (1 - Math.exp(-(ms - CLOSE_MS) / DRIFT_MS));
   const y = READ_FROM + (READ_TO - READ_FROM) * u;
   aim.set(0, y, 0);
-  pos.set(Math.sin(ms / 2900) * 16, y + 26, 104 + Math.sin(ms / 3700) * 8);
+  // Drifts against the blade's turn, so the overhead lamp's reflection never lines up across the Hindi
+  pos.set(-Math.sin(ms / 2900) * 16, y + 26, 104 + Math.sin(ms / 3700) * 8);
 };
 const closeTurn = (ms: number) => Math.sin(ms / 1000 * .45) * .14;
 const closeRoll = (ms: number) => Math.PI / 2 + Math.sin(ms / 3100) * .04;
@@ -502,8 +579,9 @@ export const IntroSword3D: React.FC<{
 
     const scene = new THREE.Scene();
     const pmrem = new THREE.PMREMGenerator(renderer);
-    const room = new RoomEnvironment();
-    const env = pmrem.fromScene(room, .04).texture;
+    const forge = forgeEnvironment();
+    const env = pmrem.fromScene(forge, .02).texture;
+    forge.traverse((o) => { if (o instanceof THREE.Mesh) { o.geometry.dispose(); (o.material as THREE.Material).dispose(); } });
     scene.environment = env;
 
     const camera = new THREE.PerspectiveCamera(FOV, 1, 1, 6000);
@@ -586,8 +664,9 @@ export const IntroSword3D: React.FC<{
       raf = requestAnimationFrame(loop);
       if (!playingRef.current || !built) return;
       if (!started) { started = now; onStartRef.current?.(); }   // the score starts with the shot
-      const { sword, bladeMat } = built;
-      const ms = still ? SETTLED_MS : now - started;
+      const { sword, bladeMat, golds } = built;
+      const scrub = import.meta.env.DEV ? (window as unknown as { __introT?: number }).__introT : undefined;   // dev: hold the shot at a time
+      const ms = still ? SETTLED_MS : scrub ?? now - started;
       const t = (now - t0) / 1000;
 
       // Fade up from black
@@ -601,9 +680,10 @@ export const IntroSword3D: React.FC<{
         turn = closeTurn(ms);
         roll = closeRoll(ms);
         sweep.position.set(aim.x + Math.sin(ms / 1400) * 60, aim.y + 40, 34);
-        sweep.intensity = 260;
-        renderer.toneMappingExposure = .74;
-        bladeMat.envMapIntensity = .55;   // darker reflections up close, so the steel keeps its contrast
+        sweep.intensity = 140;   // kept soft up close, so the glowing letters outshine the steel
+        renderer.toneMappingExposure = .66;
+        bladeMat.envMapIntensity = .36;   // darker reflections up close, so the steel keeps its contrast and the letters glow
+        golds.forEach((m) => { m.envMapIntensity = GOLD_CLOSE; });   // the guard up close catches more of the warm hall, so it reads as gold, not bronze
         glintOn = 1;
       } else {
         const p = Math.min(1, (ms - CLOSE_MS) / PULL_MS), e = pullEase(p);
@@ -619,9 +699,10 @@ export const IntroSword3D: React.FC<{
         const s = ms - SETTLED_MS;
         sweep.position.set(30, s > 0 ? 20 - ((s / 1000 * 70) % 420) : 20, 40)
           .lerp(V(closeAim.x + Math.sin(ms / 1400) * 60, closeAim.y + 40, 34), 1 - e);
-        sweep.intensity = 900 - 380 * (1 - e);
-        renderer.toneMappingExposure = .74 + .41 * e;
-        bladeMat.envMapIntensity = .55 + .7 * e;
+        sweep.intensity = 900 - 760 * (1 - e);
+        renderer.toneMappingExposure = .66 + .49 * e;
+        bladeMat.envMapIntensity = .36 + .89 * e;
+        golds.forEach((m) => { m.envMapIntensity = GOLD_CLOSE + (GOLD_FAR - GOLD_CLOSE) * e; });
         glintOn = Math.max(0, 1 - p * 2);
       }
       sword.rotation.y = turn;
@@ -642,7 +723,8 @@ export const IntroSword3D: React.FC<{
       (star.material as THREE.SpriteMaterial).rotation = .12 + Math.sin(ms / 2600) * .06;
       camera.lookAt(aim);
 
-      bladeMat.emissiveIntensity = 2.2 + Math.sin(t * 2.1) * .35;
+      bladeMat.emissiveIntensity = 1.6;
+      (bladeMat.userData.fire as { value: number }).value = t;   // the inscription's flames move on
       const pulse = 1 + Math.sin(t * 3.3) * .045 + Math.sin(t * 7.7 + 1.3) * .025 + Math.sin(t * 13.1) * .012;
       // The guard's flare waits for the pull-out, so it does not flood the close-up
       const flareOn = ms < CLOSE_MS ? .12 : Math.min(1, .12 + (ms - CLOSE_MS) / PULL_MS);
@@ -672,7 +754,7 @@ export const IntroSword3D: React.FC<{
       built?.disposables.forEach((d) => d.dispose());
       [flare, streak, flare2, streak2].forEach((sp) => sp.material.dispose());
       flareTex.dispose(); streakTex.dispose(); starTex.dispose(); star.material.dispose(); dustGeo.dispose(); dustMat.dispose();
-      env.dispose(); pmrem.dispose(); room.dispose?.();
+      env.dispose(); pmrem.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     };

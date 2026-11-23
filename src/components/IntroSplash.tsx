@@ -176,6 +176,8 @@ export const IntroSplash: React.FC<{ hold?: boolean }> = ({ hold = false }) => {
       </div>
       <IntroSword3D className="intro-sword3d" playing={ready && entered} logoRef={logoRef} onStart={startScore}
         onSettled={(frame, layer) => { if (logoImgRef.current && logoRef.current) keepSword(logoImgRef.current, logoRef.current, frame, layer); }} />
+      <div className="intro-grain" />
+      <div className="intro-vignette" />
     </div>
   );
 };

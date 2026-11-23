@@ -18,7 +18,7 @@ import { soundEffects } from './utils/audio';
 import { royalBattleMusic } from './utils/music';
 import { HandCameraPIP } from './components/HandCameraPIP';
 import { MoveHistory } from './components/MoveHistory';
-import { GameControls } from './components/GameControls';
+import { GameControls, TurnChip } from './components/GameControls';
 import { FullscreenButton } from './components/FullscreenButton';
 import { IntroSplash } from './components/IntroSplash';
 import { SpatialPointer } from './components/SpatialPointer';
@@ -1590,6 +1590,7 @@ export default function App() {
         isInCheck={isInCheck}
         isBotThinking={isBotThinking}
         isBotMoving={isBotMoving}
+        onlineSide={gameMode === 'online' && (multiplayerState.mySide === 'w' || multiplayerState.mySide === 'b') ? multiplayerState.mySide : null}
         cameraPreset={cameraPreset}
         isMuted={isMuted}
         capturedPieces={capturedPieces}
@@ -1816,6 +1817,9 @@ export default function App() {
             <span className="font-cinzel font-bold text-xs sm:text-sm text-[#1f0d04] tracking-wider truncate max-w-[40vw]">
               {multiplayerState.opponent?.connected ? multiplayerState.opponent.name : 'Rival'}
             </span>
+            {multiplayerState.opponent?.connected && (multiplayerState.mySide === 'w' || multiplayerState.mySide === 'b') && (
+              <TurnChip currentTurn={currentTurn} mySide={multiplayerState.mySide} />
+            )}
           </div>
         </div>
       )}

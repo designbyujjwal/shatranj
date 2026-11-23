@@ -19,6 +19,7 @@ interface GameControlsProps {
   isInCheck: boolean;
   isBotThinking?: boolean;
   isBotMoving?: boolean;
+  onlineSide?: 'w' | 'b' | null;   // online duel: your side, for the turn chip
   cameraPreset: CameraPreset;
   isMuted: boolean;
   capturedPieces: CapturedPieces;
@@ -55,6 +56,7 @@ export const GameControls: React.FC<GameControlsProps> = ({
   isInCheck,
   isBotThinking = false,
   isBotMoving = false,
+  onlineSide = null,
   cameraPreset,
   isMuted,
   capturedPieces,
@@ -162,6 +164,7 @@ export const GameControls: React.FC<GameControlsProps> = ({
                   Check
                 </span>
               )}
+              {onlineSide && <TurnChip currentTurn={currentTurn} mySide={onlineSide} />}
               {isBotThinking && (
                 <span className="ml-1 flex items-center gap-1 text-[10px] font-cinzel text-[#821e25] font-semibold">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#821e25] animate-ping" />
@@ -244,3 +247,15 @@ export const GameControls: React.FC<GameControlsProps> = ({
     </>
   );
 };
+
+// Online duel: whose move it is, gold when it is yours
+export const TurnChip: React.FC<{ currentTurn: 'w' | 'b'; mySide: 'w' | 'b' }> = ({ currentTurn, mySide }) =>
+  currentTurn === mySide ? (
+    <span className="ml-1 text-[10px] font-cinzel font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-[#c99a4b] text-[#1f0d04] border border-[#8a6428] shadow-[0_0_10px_rgba(201,154,75,0.6)]">
+      Your move
+    </span>
+  ) : (
+    <span className="ml-1 text-[10px] font-cinzel font-semibold px-2 py-0.5 rounded uppercase tracking-wider text-[#7d481b] border border-[#7d481b]/30">
+      {currentTurn === 'w' ? 'White' : 'Black'} to move
+    </span>
+  );

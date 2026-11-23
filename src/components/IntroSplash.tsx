@@ -124,11 +124,13 @@ export const IntroSplash: React.FC<{ hold?: boolean }> = ({ hold = false }) => {
       if (done) return;
       done = true;
       setLeaving(true);
-      // The score fades as the title does, and the ambient bed creeps in under the landing page
-      scoreRef.current?.stop(1500);
+      // The intro music plays on to its last chord over the study, then the ambient bed creeps in
+      scoreRef.current?.finish();
       scoreRef.current = null;
-      royalBattleMusic.holdForIntro(false);
-      royalBattleMusic.start();
+      window.setTimeout(() => {
+        royalBattleMusic.holdForIntro(false);
+        royalBattleMusic.start();
+      }, 9000);
       window.setTimeout(() => setGone(true), EXIT);
     };
     leaveRef.current = leave;

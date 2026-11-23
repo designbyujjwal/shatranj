@@ -3,10 +3,12 @@
  * Under the close-up the strings climb Dm - Bb - Gm - A with a low horn line, far-off heartbeats and bells
  * on the glints; a wordless choir joins as it builds. The pull-out is a riser over gathering war drums; the
  * sword locks into the T on a deep boom, a cymbal wash and full brass and choir in D major, held under the letters.
- * Original sound, nothing sampled, so there is nothing to license.
+ * Original sound, nothing sampled. It now plays only if the recorded intro below cannot be loaded.
  *
  * Create it inside the click (browsers only allow sound after one), then call start() when the shot begins.
  */
+
+import { assetUrl } from './assetUrl';
 
 export interface IntroScoreTimes { close: number; settled: number }  // seconds from the start of the shot
 
@@ -14,7 +16,7 @@ const D1 = 36.71, G1 = 49, A1 = 55, Bb1 = 58.27, D2 = 73.42, G2 = 98, A2 = 110, 
   D3 = 146.83, E3 = 164.81, F3 = 174.61, Fs3 = 185, G3 = 196, A3 = 220, Bb3 = 233.08,
   Cs4 = 277.18, D4 = 293.66, E4 = 329.63, F4 = 349.23, Fs4 = 369.99, A4 = 440;
 
-export function createIntroScore(volume = .4) {
+function createSynthIntroScore(volume = .4) {
   const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
   if (!Ctx) return null;
   const ctx = new Ctx();
@@ -245,4 +247,75 @@ function impulse(ctx: AudioContext, seconds: number) {
     }
   }
   return b;
+}
+
+/*
+ * The recorded intro: the closing section of "Forgotten Heroes", an epic cinematic trailer (audioatlant), chosen by the player.
+ * The 23.8 s cut starts 22.73 s into the track so its biggest hit (37.93 s) lands as the sword locks into the T,
+ * at SETTLED_MS (15.2 s), and it ends on the track's own last note, about 8 s later, over the study.
+ * It is shaped in the file: a slow, soft start over the first 4.5 s, then a long steady crescendo into the hit.
+ * If it can't be loaded, the synthesised score plays.
+ */
+const INTRO_URL = assetUrl('music/intro-heroes.m4a');
+let introBytes: Promise<ArrayBuffer | null> | null = null;
+const fetchIntro = () => {
+  if (!introBytes) {
+    introBytes = fetch(INTRO_URL)
+      .then((r) => (r.ok && (r.headers.get('content-type') || '').match(/audio|mp4/) ? r.arrayBuffer() : null))
+      .catch(() => null);
+  }
+  return introBytes;
+};
+if (typeof window !== 'undefined') fetchIntro();   // early, so it is ready by the click
+
+export function createIntroScore(volume = 1) {
+  const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return null;
+  const ctx = new Ctx();
+  ctx.resume().catch(() => {});
+  const out = ctx.createGain();
+  out.gain.value = volume;
+  // Gently compressed and lifted, with a limiter last, so it hits hard without clipping
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -16; comp.ratio.value = 3; comp.attack.value = .01; comp.release.value = .3;
+  const lift = ctx.createGain(); lift.gain.value = 1.15;
+  const limit = ctx.createDynamicsCompressor();
+  limit.threshold.value = -2; limit.knee.value = 0; limit.ratio.value = 20; limit.attack.value = .002; limit.release.value = .2;
+  out.connect(comp).connect(lift).connect(limit).connect(ctx.destination);
+  const buffer = fetchIntro().then((b) => (b ? ctx.decodeAudioData(b.slice(0)) : null)).catch(() => null);
+  let src: AudioBufferSourceNode | null = null;
+  let fallback: ReturnType<typeof createSynthIntroScore> = null;
+  let startedAt = -1, stopped = false;
+  return {
+    start(times: IntroScoreTimes) {
+      if (startedAt >= 0) return;
+      startedAt = ctx.currentTime;
+      buffer.then((buf) => {
+        if (stopped) return;
+        if (!buf) { ctx.close().catch(() => {}); fallback = createSynthIntroScore(); fallback?.start(times); return; }
+        const late = ctx.currentTime - startedAt;   // still decoding when the shot began: join in step with the sword
+        if (late >= buf.duration) return;
+        src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(out);
+        src.start(ctx.currentTime, late);
+      });
+    },
+    /** The intro is over: let the music play on to its last chord, unless a long way is left (the intro was skipped) */
+    finish() {
+      const left = src?.buffer && startedAt >= 0 ? src.buffer.duration - (ctx.currentTime - startedAt) : 0;
+      if (!src || left > 16) { this.stop(1500); return; }
+      stopped = true;
+      window.setTimeout(() => ctx.close().catch(() => {}), left * 1000 + 300);
+    },
+    stop(fadeMs = 1200) {
+      stopped = true;
+      if (fallback) { fallback.stop(fadeMs); return; }
+      const t = ctx.currentTime;
+      out.gain.cancelScheduledValues(t);
+      out.gain.setValueAtTime(out.gain.value, t);
+      out.gain.linearRampToValueAtTime(0, t + fadeMs / 1000);
+      window.setTimeout(() => { try { src?.stop(); } catch { /* already done */ } ctx.close().catch(() => {}); }, fadeMs + 100);
+    },
+  };
 }

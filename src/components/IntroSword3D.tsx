@@ -14,7 +14,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 const GUARD_LOGO_Y = 86;
 
 // The shot (ms from the click): a close look along the blade, then the camera pulls back until the sword stands in the T
-export const CLOSE_MS = 10000;
+export const CLOSE_MS = 12000;
 export const PULL_MS = 3200;
 export const SETTLED_MS = CLOSE_MS + PULL_MS;
 const FOV = 30;
@@ -447,7 +447,6 @@ function buildSword() {
   return { sword, bladeMat, disposables };
 }
 
-const ease = (t: number) => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 // The pull-out: leaves rest at once (no dead start), peaks a third of the way, then a long soft landing in the T
 const pullEase = (p: number) => 1 - Math.pow(1 - p, 3) * (1 + 3 * p);
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -458,9 +457,11 @@ const READ_FROM = -14, READ_TO = -290;
 // Past CLOSE_MS the track glides on from the speed it ended on and coasts to rest (DRIFT_MS), so the pull-out
 // takes over a moving camera instead of one that stops dead or snaps back
 const DRIFT_MS = 900;
+const READ_CURVE = 1.35;   // >1: slow at the start, quicker by the end
 const closePose = (ms: number, pos: THREE.Vector3, aim: THREE.Vector3) => {
+  // An unhurried start that lets the Hindi be read (about 5 s on it), gathering speed through the English
   const k = ms / CLOSE_MS;
-  const u = k < 1 ? ease(k) * .35 + k * .65 : 1 + .65 * (DRIFT_MS / CLOSE_MS) * (1 - Math.exp(-(ms - CLOSE_MS) / DRIFT_MS));
+  const u = k < 1 ? Math.pow(k, READ_CURVE) : 1 + READ_CURVE * (DRIFT_MS / CLOSE_MS) * (1 - Math.exp(-(ms - CLOSE_MS) / DRIFT_MS));
   const y = READ_FROM + (READ_TO - READ_FROM) * u;
   aim.set(0, y, 0);
   pos.set(Math.sin(ms / 2900) * 16, y + 26, 104 + Math.sin(ms / 3700) * 8);

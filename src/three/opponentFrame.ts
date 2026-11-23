@@ -52,15 +52,18 @@ export function createOpponentFrame() {
     lip(L, FRAME_H, -FRAME_W / 2 - L / 2, 0), lip(L, FRAME_H, FRAME_W / 2 + L / 2, 0),
   );
 
-  let live = false;
+  let live = false, hasStream = false;
   const corners = [new THREE.Vector3(), new THREE.Vector3()];
 
   return {
     group,
+    /** A stream is set, even while the frame is hidden for the book or landing page */
+    get hasStream() { return hasStream; },
     /** Show the frame with this stream (null hides it) */
     setStream(stream: MediaStream | null) {
       video.srcObject = stream;
-      group.visible = !!stream;
+      hasStream = !!stream;
+      group.visible = hasStream;
       if (stream) video.play().catch(() => { /* muted video may still wait for a gesture; it starts on the next one */ });
     },
     /** Which side of the table the frame stands on: across from `mySide` */

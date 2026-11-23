@@ -221,7 +221,7 @@ export class ChessSceneManager {
       camera: this.camera,
       startInGame: options.startInGame,
       getSide: () => this.studySide,
-      hasOpponentFrame: () => this.opponentFrame.group.visible,
+      hasOpponentFrame: () => this.opponentFrame.hasStream,
       onComplete: (sel) => this.onStudyCompleteCallback?.(sel),
       onConfirm: (sel) => this.onStudyConfirmCallback?.(sel),
       onProfileApply: (sel) => this.onProfileApplyCallback?.(sel),
@@ -2185,7 +2185,7 @@ export class ChessSceneManager {
 
   /** An online duel: the opponent's camera stands across the table (null takes it away) */
   public setOpponentVideo(stream: MediaStream | null, mySide: 'w' | 'b') {
-    const had = this.opponentFrame.group.visible;
+    const had = this.opponentFrame.hasStream;
     this.opponentFrame.setStream(stream);
     // The playing view pulls back a little while the frame is up, so it fits above the board
     if (had !== !!stream && (this.currentPreset === 'white' || this.currentPreset === 'black')) this.setCameraPreset(this.currentPreset);
@@ -2193,7 +2193,7 @@ export class ChessSceneManager {
   }
 
   private placeOpponentFrame(mySide: 'w' | 'b' = this.studySide) {
-    if (!this.opponentFrame.group.visible) return;
+    if (!this.opponentFrame.hasStream) return;
     const v = this.study.gameView();
     const eye = this.camera.clone();
     eye.position.copy(v.pos);
@@ -2445,6 +2445,8 @@ export class ChessSceneManager {
     // or while a full-screen overlay has asked for the frames (renderHold)
     if (!isSceneRenderHeld()) this.study.tick();
     // The player's own camera tile matches the opponent's frame on screen (read by CSS as --opp-frame-w/h)
+    // Only in the playing view: the book (Profile) and the landing page move the camera elsewhere
+    this.opponentFrame.group.visible = this.opponentFrame.hasStream && !this.study.ownsCamera;
     const fs = this.opponentFrame.tick(this.camera, this.container.clientWidth, this.container.clientHeight);
     const key = fs ? `${Math.round(fs.w)}x${Math.round(fs.h)}` : '';
     if (key !== this.frameSize) {

@@ -339,6 +339,10 @@ export default function App() {
     setCapturedPieces(captured);
   }, []);
 
+  // Online duel: the server's result text names the winner ("Checkmate! Black wins!", "White resigned. Black wins!", "Match drawn.")
+  const winnerFromResult = (result: string): 'w' | 'b' | 'draw' =>
+    /white wins/i.test(result) ? 'w' : /black wins/i.test(result) ? 'b' : 'draw';
+
   // Check Game Over Conditions
   const checkGameOverStatus = useCallback(() => {
     const chess = chessRef.current;
@@ -471,7 +475,7 @@ export default function App() {
               }
 
               if (data.isGameOver && data.result) {
-                setGameOver({ winner: null, reason: data.result });
+                setGameOver({ winner: winnerFromResult(data.result), reason: data.result });
               }
             } else {
               throw new Error('Local chess.move returned null');
@@ -498,7 +502,7 @@ export default function App() {
             }
 
             if (data.isGameOver && data.result) {
-              setGameOver({ winner: null, reason: data.result });
+              setGameOver({ winner: winnerFromResult(data.result), reason: data.result });
             }
           }
         } else {
@@ -512,7 +516,7 @@ export default function App() {
             sceneManagerRef.current?.syncWithChess(chess, false);
           }
           if (data.isGameOver && data.result) {
-            setGameOver({ winner: null, reason: data.result });
+            setGameOver({ winner: winnerFromResult(data.result), reason: data.result });
           }
         }
       },
@@ -554,7 +558,7 @@ export default function App() {
         setMultiplayerState((prev) => ({ ...prev, pendingDrawFromMe: false }));
       },
       onGameEnded: (result) => {
-        setGameOver({ winner: null, reason: result });
+        setGameOver({ winner: winnerFromResult(result), reason: result });
       },
       onRematchStarted: (data) => {
         const chess = chessRef.current;

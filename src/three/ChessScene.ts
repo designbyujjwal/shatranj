@@ -711,6 +711,7 @@ export class ChessSceneManager {
         if (!cancelCaptures && this.activeCaptureAnimations.has(piece)) {
           continue;
         }
+        piece.visible = true;
         piece.userData.isAnimating = false;
         piece.userData.isGrabbed = false;
         piece.userData.square = null;
@@ -1052,6 +1053,7 @@ export class ChessSceneManager {
         if (this.activeCaptureAnimations.has(piece)) {
           continue;
         }
+        piece.visible = true;
         piece.userData.isAnimating = false;
         piece.userData.isGrabbed = false;
         piece.userData.square = null;
@@ -1457,59 +1459,437 @@ export class ChessSceneManager {
    *    - Moves to designated graveyard slot on the marble table flank.
    *    - Softly descends and fades in (0.0 -> 1.0) into its upright resting slot.
    */
-  /** A struck piece chips: a few small shards of its own stone burst away from the blow, bounce once and fade. */
-  private spawnCaptureChips(origin: THREE.Vector3, color: PieceColor, awayDir: THREE.Vector3) {
-    const material = this.materials.getPieceMaterial(color).clone();
-    material.transparent = true;
-    const group = new THREE.Group();
-    this.scene.add(group);
-    const floorY = origin.y;
-    const chips: { mesh: THREE.Mesh; vel: THREE.Vector3; spin: THREE.Vector3 }[] = [];
-    for (let i = 0; i < 11; i++) {
-      const size = 0.035 + Math.random() * 0.05;
-      const mesh = new THREE.Mesh(new THREE.TetrahedronGeometry(size), material);
-      mesh.position.set(origin.x, floorY + 0.25 + Math.random() * 0.35, origin.z);
-      mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
-      // Mostly away from the attacker, with some scatter all round
+  /**
+   * Dev only, to study the capture break frame by frame:
+   * window.__fxSlow = 20 plays it twenty times slower; window.__fxT = 0.3 holds it at 0.3 s (step it by changing the number).
+   */
+  private fxTarget(t: number, realDt: number): number {
+    if (!(import.meta as any).env?.DEV) return t + realDt;
+    const w = window as any;
+    if (typeof w.__fxT === 'number') return w.__fxT;
+    return t + realDt / (Number(w.__fxSlow) || 1);
+  }
+
+  /**
+   * A captured piece breaks like carved stone. Its crown snaps off along a slanted line and topples away from the blow,
+   * a wedge splits from the far side of the base, and the stump rocks and stays. Every break shows a solid, rough stone
+   * face, not a hollow shell. Irregular shards scatter and settle on the squares, and a little dust puffs from the break.
+   * Everything comes to rest, then fades; the whole piece reappears in the tray.
+   */
+  private spawnCaptureBreak(pieceObj: PieceMeshObject, color: PieceColor, awayDir: THREE.Vector3) {
+    pieceObj.updateMatrixWorld(true);
+    const sources: THREE.Mesh[] = [];
+    const box = new THREE.Box3();
+    pieceObj.traverse((o) => {
+      if (!(o instanceof THREE.Mesh) || o === pieceObj.userData.shadowPlane || o.material === this.materials.feltMaterial) return;
+      sources.push(o);
+      box.expandByObject(o);
+    });
+    if (!sources.length || box.isEmpty()) return;
+    this.renderer.localClippingEnabled = true;
+
+    const rand = (a: number, b: number) => a + Math.random() * (b - a);
+    const UP = new THREE.Vector3(0, 1, 0);
+    const floorY = box.min.y;
+    const topY = box.max.y;
+    const height = topY - floorY;
+    const axis = new THREE.Vector3((box.min.x + box.max.x) / 2, 0, (box.min.z + box.max.z) / 2);
+    const radius = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) / 2;
+    const away = awayDir.clone().setY(0);
+    if (away.lengthSq() < 1e-6) away.set(1, 0, 0);
+    away.normalize();
+    const side = new THREE.Vector3(-away.z, 0, away.x);
+
+    // The piece's outline: how far it reaches from the centre line at each height and in each direction
+    // (sampled over its whole surface, so it also fits the knight, which is not a turned piece)
+    const BINS = 48, SECTORS = 24;
+    const profile = Array.from({ length: BINS }, () => new Array(SECTORS).fill(0));
+    const v = new THREE.Vector3(), va = new THREE.Vector3(), vb = new THREE.Vector3(), vc = new THREE.Vector3();
+    const note = (p: THREE.Vector3) => {
+      const bin = Math.min(BINS - 1, Math.max(0, Math.floor(((p.y - floorY) / height) * BINS)));
+      const ang = Math.atan2(p.z - axis.z, p.x - axis.x);
+      const sec = ((Math.floor(((ang + Math.PI) / (Math.PI * 2)) * SECTORS) % SECTORS) + SECTORS) % SECTORS;
+      profile[bin][sec] = Math.max(profile[bin][sec], Math.hypot(p.x - axis.x, p.z - axis.z));
+    };
+    for (const src of sources) {
+      const pos = src.geometry.getAttribute('position');
+      const idx = src.geometry.getIndex();
+      const tris = idx ? idx.count / 3 : pos.count / 3;
+      for (let i = 0; i < tris; i++) {
+        const ia = idx ? idx.getX(i * 3) : i * 3, ib = idx ? idx.getX(i * 3 + 1) : i * 3 + 1, ic = idx ? idx.getX(i * 3 + 2) : i * 3 + 2;
+        va.fromBufferAttribute(pos, ia).applyMatrix4(src.matrixWorld);
+        vb.fromBufferAttribute(pos, ib).applyMatrix4(src.matrixWorld);
+        vc.fromBufferAttribute(pos, ic).applyMatrix4(src.matrixWorld);
+        for (const [x, y] of [[1, 0], [0, 1], [0, 0], [0.5, 0.5], [0.5, 0], [0, 0.5], [0.33, 0.33]]) {
+          v.copy(va).multiplyScalar(x).addScaledVector(vb, y).addScaledVector(vc, 1 - x - y);
+          note(v);
+        }
+      }
+    }
+    // turned pieces: fill the sectors a coarse mesh missed from their neighbours
+    for (const row of profile) for (let k = 0; k < SECTORS; k++) if (row[k] === 0) row[k] = Math.min(row[(k + SECTORS - 1) % SECTORS], row[(k + 1) % SECTORS]);
+    const R = (y: number, ang = 0) => {
+      if (y < floorY || y > topY) return 0;
+      const bin = Math.min(BINS - 1, Math.floor(((y - floorY) / height) * BINS));
+      const f = ((ang + Math.PI) / (Math.PI * 2)) * SECTORS - 0.5;
+      const k0 = ((Math.floor(f) % SECTORS) + SECTORS) % SECTORS, k1 = (k0 + 1) % SECTORS;
+      const fr = f - Math.floor(f);
+      return THREE.MathUtils.lerp(profile[bin][k0], profile[bin][k1], fr);
+    };
+    const inside = (p: THREE.Vector3) => Math.hypot(p.x - axis.x, p.z - axis.z) <= R(p.y, Math.atan2(p.z - axis.z, p.x - axis.x));
+
+    // The break lines: a slanted crown break, and a near-vertical split on the far side of the base
+    const cutY = floorY + height * rand(0.45, 0.6);
+    const cutNormal = UP.clone().addScaledVector(away, rand(0.3, 0.5)).addScaledVector(side, rand(-0.2, 0.2)).normalize();
+    const cutPoint = new THREE.Vector3(axis.x, cutY, axis.z);
+    const cutAbove = new THREE.Plane().setFromNormalAndCoplanarPoint(cutNormal, cutPoint);
+    const cutBelow = cutAbove.clone().negate();
+    const wedgeNormal = away.clone().addScaledVector(side, rand(-0.4, 0.4)).normalize();
+    const wedgeOffset = Math.max(0.02, R(floorY + height * 0.25, Math.atan2(away.z, away.x)) * rand(0.3, 0.5));
+    const wedgePoint = axis.clone().setY(floorY).addScaledVector(wedgeNormal, wedgeOffset);
+    const wedgeFar = new THREE.Plane().setFromNormalAndCoplanarPoint(wedgeNormal, wedgePoint);
+    const wedgeNear = wedgeFar.clone().negate();
+
+    const materials: THREE.Material[] = [];
+    const geometries: THREE.BufferGeometry[] = [];
+    const root = new THREE.Group();
+    this.scene.add(root);
+    const shell = (m: THREE.Material, planes: THREE.Plane[]) => {
+      const c = m.clone();
+      c.transparent = false;   // solid until the fade: transparent pieces sort badly and look like glass
+      c.opacity = 1;
+      c.side = THREE.DoubleSide;   // where a break face falls short, the stone's inside shows, never the board through it
+      c.clippingPlanes = planes;
+      c.clipShadows = true;
+      materials.push(c);
+      return c;
+    };
+    // The inside of the stone: the piece's own colour, matte and a shade deeper, faceted like a fresh break
+    const coreBase = this.materials.getPieceMaterial(color).clone() as THREE.MeshPhysicalMaterial;
+    coreBase.roughness = 0.92;
+    coreBase.metalness = 0;
+    coreBase.clearcoat = 0;
+    coreBase.flatShading = true;
+    coreBase.color.multiplyScalar(color === 'w' ? 0.86 : 1.25);
+    coreBase.transparent = false;
+    materials.push(coreBase);
+    const core = (planes: THREE.Plane[]) => {
+      const c = coreBase.clone();
+      c.clippingPlanes = planes;
+      c.clipShadows = true;
+      materials.push(c);
+      return c;
+    };
+
+    // A rough break face on a plane: rings out to the silhouette, the rim jagged and the face bumped outwards,
+    // so it reads as broken stone. `edge(dir)` finds how far the solid reaches along an in-plane direction.
+    const breakFace = (centre: THREE.Vector3, normal: THREE.Vector3, e1: THREE.Vector3, e2: THREE.Vector3, edge: (dir: THREE.Vector3) => number, rough: number) => {
+      const SEG = 36, RINGS = 4;
+      const positions: number[] = [];
+      const rim: number[] = [];
+      for (let s = 0; s < SEG; s++) {
+        const a = (s / SEG) * Math.PI * 2;
+        rim.push(edge(e1.clone().multiplyScalar(Math.cos(a)).addScaledVector(e2, Math.sin(a))));
+      }
+      const bumps: number[][] = [];
+      for (let r = 0; r <= RINGS; r++) {
+        bumps.push([]);
+        for (let s = 0; s < SEG; s++) bumps[r].push(r === 0 ? rough * 0.6 : rand(-0.3, 1) * rough * (r === RINGS ? 1.4 : 1));
+      }
+      const point = (r: number, s: number) => {
+        const a = (s / SEG) * Math.PI * 2;
+        const k = r / RINGS;
+        const reach = rim[s % SEG] * k * (r === RINGS ? rand(0.9, 1.0) : 1);
+        return centre.clone().addScaledVector(e1, Math.cos(a) * reach).addScaledVector(e2, Math.sin(a) * reach).addScaledVector(normal, bumps[r][s % SEG]);
+      };
+      const grid: THREE.Vector3[][] = [];
+      for (let r = 0; r <= RINGS; r++) {
+        grid.push([]);
+        for (let s = 0; s < SEG; s++) grid[r].push(point(r, s));
+      }
+      const tri = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3) => positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+      for (let r = 0; r < RINGS; r++) {
+        for (let s = 0; s < SEG; s++) {
+          const a = grid[r][s], b = grid[r][(s + 1) % SEG], c = grid[r + 1][s], d = grid[r + 1][(s + 1) % SEG];
+          if (r > 0) tri(a, b, d);
+          tri(a, d, c);
+        }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      g.computeVertexNormals();
+      // face the triangles outwards, along `normal`
+      const n = new THREE.Vector3();
+      const p0 = new THREE.Vector3(), p1 = new THREE.Vector3(), p2 = new THREE.Vector3();
+      const pos = g.getAttribute('position');
+      p0.fromBufferAttribute(pos, 0); p1.fromBufferAttribute(pos, 1); p2.fromBufferAttribute(pos, 2);
+      n.subVectors(p1, p0).cross(p2.clone().sub(p0));
+      if (n.dot(normal) < 0) {
+        g.index = null;
+        for (let i = 0; i < pos.count; i += 3) {
+          const x = pos.getX(i + 1), y = pos.getY(i + 1), z = pos.getZ(i + 1);
+          pos.setXYZ(i + 1, pos.getX(i + 2), pos.getY(i + 2), pos.getZ(i + 2));
+          pos.setXYZ(i + 2, x, y, z);
+        }
+        g.computeVertexNormals();
+      }
+      geometries.push(g);
+      return g;
+    };
+    // How far the solid reaches from `from` along `dir` before leaving the silhouette (bisection)
+    const reach = (from: THREE.Vector3, dir: THREE.Vector3) => {
+      let lo = 0, hi = radius * 2.2;
+      const p = new THREE.Vector3();
+      for (let i = 0; i < 22; i++) {
+        const mid = (lo + hi) / 2;
+        p.copy(from).addScaledVector(dir, mid);
+        if (inside(p)) lo = mid; else hi = mid;
+      }
+      return lo;
+    };
+
+    const cutE1 = side.clone().projectOnPlane(cutNormal).normalize();
+    const cutE2 = new THREE.Vector3().crossVectors(cutNormal, cutE1).normalize();
+    const crownRough = Math.min(0.03, height * 0.025);
+    const cutEdge = (dir: THREE.Vector3) => reach(cutPoint, dir);
+    // the wedge split is a vertical plane: centre it at mid-height of the base
+    const wedgeE1 = new THREE.Vector3(-wedgeNormal.z, 0, wedgeNormal.x);
+    const wedgeCentre = wedgePoint.clone().setY(floorY + (cutY - floorY) * 0.45);
+    const wedgeEdge = (dir: THREE.Vector3) => reach(wedgeCentre, dir);
+
+    type Body = {
+      obj: THREE.Object3D; vel: THREE.Vector3; spin: THREE.Vector3;
+      hull: THREE.Vector3[];                    // local points that touch the board
+      planes: { local: THREE.Plane; live: THREE.Plane }[];
+      stump?: boolean; r?: number;
+    };
+    const bodies: Body[] = [];
+
+    // One chunk of the piece: the real piece's meshes kept on the given sides of the break lines, plus its break faces
+    const chunk = (keep: THREE.Plane[], faces: { g: THREE.BufferGeometry; clip: THREE.Plane[] }[], vel: THREE.Vector3, spin: THREE.Vector3, stump = false) => {
+      // centre of mass: average of solid sample points on the kept side
+      const pts: THREE.Vector3[] = [];
+      for (let yi = 0; yi <= 16; yi++) {
+        const y = floorY + (yi / 16) * height;
+        for (let ai = 0; ai < 16; ai++) {
+          for (const k of [0.35, 0.98]) {
+            const a = (ai / 16) * Math.PI * 2 - Math.PI;
+            const r = R(y, a);
+            const p = new THREE.Vector3(axis.x + Math.cos(a) * r * k, y, axis.z + Math.sin(a) * r * k);
+            if (keep.every((pl) => pl.distanceToPoint(p) >= 0)) pts.push(p);
+          }
+        }
+      }
+      for (const f of faces) {
+        const pos = f.g.getAttribute('position');
+        for (let i = 0; i < pos.count; i += 7) {
+          const p = new THREE.Vector3().fromBufferAttribute(pos, i);
+          if (f.clip.every((pl) => pl.distanceToPoint(p) >= -1e-4)) pts.push(p);
+        }
+      }
+      if (!pts.length) return;
+      const centre = pts.reduce((s, p) => s.add(p), new THREE.Vector3()).divideScalar(pts.length);
+
+      const g = new THREE.Group();
+      g.position.copy(centre);
+      root.add(g);
+      g.updateMatrixWorld(true);
+      const inv = g.matrixWorld.clone().invert();
+      const allPlanes = new Map<THREE.Plane, THREE.Plane>();   // world plane at rest -> live plane
+      const livePlane = (p: THREE.Plane) => {
+        if (!allPlanes.has(p)) allPlanes.set(p, p.clone());
+        return allPlanes.get(p)!;
+      };
+      const keepLive = keep.map(livePlane);
+      for (const src of sources) {
+        const mat = Array.isArray(src.material) ? src.material.map((m) => shell(m, keepLive)) : shell(src.material, keepLive);
+        const mesh = new THREE.Mesh(src.geometry, mat);
+        mesh.matrixAutoUpdate = false;
+        mesh.matrix.multiplyMatrices(inv, src.matrixWorld);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        g.add(mesh);
+      }
+      for (const f of faces) {
+        const mesh = new THREE.Mesh(f.g, core(f.clip.map(livePlane)));
+        mesh.matrixAutoUpdate = false;
+        mesh.matrix.copy(inv);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        g.add(mesh);
+      }
+      bodies.push({
+        obj: g, vel, spin, stump,
+        hull: pts.map((p) => p.clone().applyMatrix4(inv)),
+        planes: [...allPlanes].map(([rest, live]) => ({ local: rest.clone().applyMatrix4(inv), live })),
+      });
+    };
+
+    const crownFace = breakFace(cutPoint, cutNormal.clone().negate(), cutE1, cutE2, cutEdge, crownRough);
+    const baseFace = breakFace(cutPoint, cutNormal, cutE1, cutE2, cutEdge, crownRough);
+    const wedgeFaceNear = breakFace(wedgeCentre, wedgeNormal.clone().negate(), wedgeE1, UP, wedgeEdge, crownRough * 0.8);
+    const wedgeFaceFar = breakFace(wedgeCentre, wedgeNormal, wedgeE1, UP, wedgeEdge, crownRough * 0.8);
+
+    // The crown: snaps off and topples away from the blow
+    chunk([cutAbove], [{ g: crownFace, clip: [] }],
+      away.clone().multiplyScalar(rand(0.7, 1.0)).addScaledVector(side, rand(-0.25, 0.25)).setY(rand(0.8, 1.15)),
+      side.clone().multiplyScalar(rand(6, 9)).addScaledVector(UP, rand(-1.5, 1.5)));
+    // The wedge: splits from the far side of the base
+    chunk([cutBelow, wedgeFar], [{ g: baseFace, clip: [wedgeFar] }, { g: wedgeFaceFar, clip: [cutBelow] }],
+      wedgeNormal.clone().multiplyScalar(rand(0.55, 0.85)).addScaledVector(side, rand(-0.3, 0.3)).setY(rand(0.35, 0.6)),
+      new THREE.Vector3().crossVectors(UP, wedgeNormal).multiplyScalar(rand(5, 8)).addScaledVector(UP, rand(-2, 2)));
+    // The stump: stays standing, rocked by the blow
+    chunk([cutBelow, wedgeNear], [{ g: baseFace, clip: [wedgeNear] }, { g: wedgeFaceNear, clip: [cutBelow] }],
+      new THREE.Vector3(), side.clone(), true);
+
+    // Shards: irregular stones, a few larger and many tiny, faceted like broken stone
+    const shardMat = coreBase.clone();
+    shardMat.color.copy(this.materials.getPieceMaterial(color).color).multiplyScalar(color === 'w' ? 0.95 : 1.1);
+    materials.push(shardMat);
+    for (let i = 0; i < 26; i++) {
+      const size = 0.012 + Math.pow(Math.random(), 2.4) * 0.07;
+      const geom = Math.random() < 0.55 ? new THREE.TetrahedronGeometry(size) : new THREE.OctahedronGeometry(size * 0.85);
+      geom.scale(rand(0.5, 1.4), rand(0.35, 0.9), rand(0.5, 1.4));
+      geometries.push(geom);
+      const mesh = new THREE.Mesh(geom, shardMat);
+      mesh.castShadow = true;
       const a = Math.random() * Math.PI * 2;
-      const vel = new THREE.Vector3(Math.cos(a), 0, Math.sin(a)).multiplyScalar(0.6 + Math.random() * 0.9)
-        .addScaledVector(awayDir, 1.1);
-      vel.y = 1.6 + Math.random() * 1.6;
-      chips.push({ mesh, vel, spin: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(18) });
-      group.add(mesh);
+      const ring = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+      const fromCut = Math.random() < 0.7;
+      const y = fromCut ? cutY + rand(-0.04, 0.04) : floorY + rand(0.05, cutY - floorY);
+      mesh.position.copy(axis).addScaledVector(ring, R(y, a > Math.PI ? a - Math.PI * 2 : a) * rand(0.6, 1.0)).setY(y);
+      mesh.rotation.set(rand(0, 6), rand(0, 6), rand(0, 6));
+      root.add(mesh);
+      const speed = rand(0.35, 1.0) * Math.min(2.2, 0.05 / (size + 0.02));   // the small ones fly further
+      const vel = ring.multiplyScalar(speed * 0.7).addScaledVector(away, speed * 0.5).setY(rand(0.4, 1.6));
+      bodies.push({ obj: mesh, vel, spin: new THREE.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(rand(8, 24)), hull: [], planes: [], r: size * 0.45 });
     }
 
-    const LIFE = 750;
-    const start = performance.now();
-    let last = start;
-    const step = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
-      const t = (now - start) / LIFE;
-      for (const c of chips) {
-        c.vel.y -= 9.8 * dt;
-        c.mesh.position.addScaledVector(c.vel, dt);
-        if (c.mesh.position.y < floorY + 0.02) {
-          c.mesh.position.y = floorY + 0.02;
-          c.vel.y = Math.abs(c.vel.y) * 0.3;   // one small bounce
-          c.vel.x *= 0.5;
-          c.vel.z *= 0.5;
-          c.spin.multiplyScalar(0.5);
+    // Dust: a soft puff from the break that spreads, lifts a little and thins away
+    const dustTex = this.captureDustTexture();
+    const dustColor = color === 'w' ? 0xe9dfcb : 0x9a9187;
+    const dust: { sprite: THREE.Sprite; vel: THREE.Vector3; grow: number; peak: number; delay: number }[] = [];
+    for (let i = 0; i < 12; i++) {
+      const mat = new THREE.SpriteMaterial({ map: dustTex, color: dustColor, transparent: true, opacity: 0, depthWrite: false });
+      materials.push(mat);
+      const sprite = new THREE.Sprite(mat);
+      const a = Math.random() * Math.PI * 2;
+      const dir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+      const low = i >= 8;   // a few low puffs where the pieces hit the board
+      sprite.position.copy(axis).addScaledVector(dir, radius * (low ? 0.9 : 0.4)).setY(low ? floorY + 0.04 : cutY + rand(-0.06, 0.04));
+      sprite.scale.setScalar(rand(0.1, 0.18));
+      root.add(sprite);
+      dust.push({
+        sprite, vel: dir.multiplyScalar(rand(0.2, 0.45)).addScaledVector(away, 0.15).setY(rand(0.05, 0.2)),
+        grow: rand(0.6, 1.1), peak: rand(0.22, 0.38) * (low ? 0.7 : 1), delay: low ? rand(0.18, 0.3) : 0,
+      });
+    }
+
+    const HOLD = 0.05;   // the blow lands, the stone cracks, and only then does it come apart
+    const REST = 1.05;   // seconds before the pieces start to fade
+    const FADE = 0.5;
+    const END = Math.max(REST + FADE, 1.4);
+    const STEP = 1 / 240;
+    const q = new THREE.Quaternion();
+    const w = new THREE.Vector3();
+    let t = 0;
+    let fading = false;
+    let last = performance.now();
+
+    const integrate = (dt: number) => {
+      t += dt;
+      for (const b of bodies) {
+        if (b.stump) {
+          // rocks on its base and settles back upright
+          const k = Math.exp(-t * 7) * Math.sin(t * 40) * 0.08;
+          b.obj.quaternion.setFromAxisAngle(b.spin, k);
+          continue;
         }
-        c.mesh.rotation.x += c.spin.x * dt;
-        c.mesh.rotation.y += c.spin.y * dt;
-        c.mesh.rotation.z += c.spin.z * dt;
+        if (t < HOLD && b.hull.length) {
+          // the crack: a shiver before the chunks part
+          continue;
+        }
+        b.vel.y -= 9.8 * dt;
+        b.obj.position.addScaledVector(b.vel, dt);
+        const s = b.spin.length();
+        if (s > 1e-3) b.obj.quaternion.premultiply(q.setFromAxisAngle(w.copy(b.spin).divideScalar(s), s * dt));
+
+        // contact with the board: the lowest point of the body may not go under it
+        let low = Infinity;
+        if (b.hull.length) {
+          b.obj.updateMatrixWorld(true);
+          for (const p of b.hull) low = Math.min(low, w.copy(p).applyMatrix4(b.obj.matrixWorld).y);
+        } else {
+          low = b.obj.position.y - (b.r ?? 0);
+        }
+        if (low < floorY) {
+          b.obj.position.y += floorY - low;
+          if (b.vel.y < -0.35) {
+            b.vel.y = -b.vel.y * 0.22;   // stone barely bounces
+            b.vel.x *= 0.6; b.vel.z *= 0.6;
+            b.spin.multiplyScalar(0.5);
+          } else {
+            b.vel.y = Math.max(0, b.vel.y);
+            b.vel.x *= 1 - 6 * dt; b.vel.z *= 1 - 6 * dt;   // grinding to a stop
+            b.spin.multiplyScalar(1 - 7 * dt);
+          }
+        }
       }
-      material.opacity = t < 0.55 ? 1 : Math.max(0, 1 - (t - 0.55) / 0.45);
-      if (t < 1) {
+      for (const d of dust) {
+        const life = (t - d.delay) / 1.2;
+        if (life < 0) continue;
+        d.sprite.position.addScaledVector(d.vel, dt);
+        d.vel.multiplyScalar(1 - 1.8 * dt);
+        d.sprite.scale.multiplyScalar(1 + d.grow * dt);
+        (d.sprite.material as THREE.SpriteMaterial).opacity = life < 0.1 ? d.peak * (life / 0.1) : d.peak * Math.max(0, 1 - (life - 0.1) / 0.9) ** 1.7;
+      }
+    };
+
+    const step = (now: number) => {
+      const target = Math.min(END, this.fxTarget(t, Math.min(0.05, (now - last) / 1000)));
+      last = now;
+      if (target < t) {
+        requestAnimationFrame(step);   // (dev) seeking backwards is not supported; hold
+        return;
+      }
+      while (t + STEP <= target) integrate(STEP);
+      for (const b of bodies) {
+        if (!b.planes.length) continue;
+        b.obj.updateMatrixWorld(true);
+        for (const p of b.planes) p.live.copy(p.local).applyMatrix4(b.obj.matrixWorld);
+      }
+      const fade = t < REST ? 1 : Math.max(0, 1 - (t - REST) / FADE);
+      if (fade < 1 && !fading) {
+        fading = true;
+        for (const m of materials) if (!(m instanceof THREE.SpriteMaterial)) { m.transparent = true; m.needsUpdate = true; }
+      }
+      for (const m of materials) if (!(m instanceof THREE.SpriteMaterial)) m.opacity = fade;
+
+      if (t < END - STEP) {
         requestAnimationFrame(step);
       } else {
-        this.scene.remove(group);
-        chips.forEach((c) => c.mesh.geometry.dispose());
-        material.dispose();
+        this.scene.remove(root);
+        geometries.forEach((g) => g.dispose());
+        materials.forEach((m) => m.dispose());
       }
     };
     requestAnimationFrame(step);
+  }
+
+  private dustTexture: THREE.Texture | null = null;
+  private captureDustTexture(): THREE.Texture {
+    if (this.dustTexture) return this.dustTexture;
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d')!;
+    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.45, 'rgba(255,255,255,.45)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 64, 64);
+    this.dustTexture = new THREE.CanvasTexture(c);
+    return this.dustTexture;
   }
 
   private animateCaptureRemoval(pieceObj: PieceMeshObject, id: string, impactSourcePos?: THREE.Vector3) {
@@ -1592,9 +1972,11 @@ export class ChessSceneManager {
     const targetRotationY = color === 'b' ? Math.PI * 0.20 : -Math.PI * 0.20;
     const targetQuaternion = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetRotationY);
 
-    this.spawnCaptureChips(startPos, color, impulseDir);
+    // The piece breaks on its square; the whole piece is hidden until it reappears in the tray
+    this.spawnCaptureBreak(pieceObj, color, impulseDir);
+    pieceObj.visible = false;
 
-    const stage1Duration = 320; // 320ms subtle slide & fade-out on tile
+    const stage1Duration = 900; // the piece lies broken on its square before it reappears in the tray
     const stage2Duration = 260; // 260ms soft drop & fade-in into tray slot
     const startTime = performance.now();
     const session = this.captureAnimationSession;
@@ -1611,6 +1993,7 @@ export class ChessSceneManager {
       if (!this.capturedMeshes[color].includes(pieceObj)) {
         this.capturedMeshes[color].push(pieceObj);
       }
+      pieceObj.visible = true;
       pieceObj.position.copy(targetSlot);
       pieceObj.quaternion.copy(targetQuaternion);
       pieceObj.scale.set(1.0, 1.0, 1.0);
@@ -1700,6 +2083,7 @@ export class ChessSceneManager {
           }
 
           // Reset scale and set initial hovering position above slot
+          pieceObj.visible = true;
           pieceObj.scale.set(1.0, 1.0, 1.0);
           pieceObj.position.set(targetSlot.x, targetSlot.y + 0.22, targetSlot.z);
           pieceObj.quaternion.copy(targetQuaternion);

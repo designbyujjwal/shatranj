@@ -8,6 +8,7 @@ interface OpponentVideoCardProps {
   remoteStream: MediaStream | null;
   localStream: MediaStream | null;
   mySide: PieceColor | 'spectator' | null;
+  showCameras?: boolean;   // false in a voice duel: names, turn and actions only, no webcams
   currentTurn: PieceColor;
   isMyTurn: boolean;
   isInCheck: boolean;
@@ -39,6 +40,7 @@ export const OpponentVideoCard: React.FC<OpponentVideoCardProps> = ({
   remoteStream,
   localStream,
   mySide,
+  showCameras = true,
   currentTurn,
   isMyTurn,
   isInCheck,
@@ -185,7 +187,7 @@ export const OpponentVideoCard: React.FC<OpponentVideoCardProps> = ({
               <span className="text-[10px] font-cinzel uppercase tracking-wider text-[#821e25] bg-[#821e25]/10 border border-[#7d481b]/40 px-2 py-0.5 rounded font-bold">
                 {opponentSide === 'w' ? 'White' : 'Black'}
               </span>
-              {hasRemoteVideo && (
+              {showCameras && hasRemoteVideo && (
                 <button
                   type="button"
                   onClick={toggleOpponentAudio}
@@ -199,7 +201,7 @@ export const OpponentVideoCard: React.FC<OpponentVideoCardProps> = ({
           </div>
 
           {/* Video / Placeholder Area */}
-          <div className="relative w-full aspect-4/3 bg-[#26150b] rounded-lg flex items-center justify-center overflow-hidden border border-[#7d481b]/30 shadow-inner">
+          <div className={`relative w-full aspect-4/3 ${showCameras ? '' : 'hidden'} bg-[#26150b] rounded-lg flex items-center justify-center overflow-hidden border border-[#7d481b]/30 shadow-inner`}>
             {/* Live Remote WebRTC Video (Natural perspective, not mirrored) */}
             <video
               ref={remoteVideoRef}
@@ -275,7 +277,7 @@ export const OpponentVideoCard: React.FC<OpponentVideoCardProps> = ({
       </div>
 
       {/* 2. Your own camera: the same parchment card, in your corner at bottom left */}
-      <div className="absolute bottom-4 left-4 sm:left-6 z-30 pointer-events-auto select-none">
+      <div className={`absolute ${showCameras ? 'bottom-4' : 'bottom-20 xl:bottom-4'} left-4 sm:left-6 z-30 pointer-events-auto select-none`}>
         <div id="self-video-card" className="hud-paper relative w-52 sm:w-60 md:w-68 rounded-xl p-2.5 sm:p-3">
           <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-[#7d481b]/20">
             <div className="flex items-center gap-1.5 min-w-0">
@@ -286,6 +288,7 @@ export const OpponentVideoCard: React.FC<OpponentVideoCardProps> = ({
               <span className="text-[10px] font-cinzel uppercase tracking-wider text-[#821e25] bg-[#821e25]/10 border border-[#7d481b]/40 px-2 py-0.5 rounded font-bold">
                 {mySide === 'w' ? 'White' : 'Black'}
               </span>
+              {showCameras && <>
               <button
                 type="button"
                 onClick={toggleLocalMic}
@@ -302,10 +305,11 @@ export const OpponentVideoCard: React.FC<OpponentVideoCardProps> = ({
               >
                 {isVideoOff ? <VideoOff className="w-3.5 h-3.5" /> : <Video className="w-3.5 h-3.5" />}
               </button>
+              </>}
             </div>
           </div>
 
-          <div className="relative w-full aspect-4/3 bg-[#26150b] rounded-lg flex items-center justify-center overflow-hidden border border-[#7d481b]/30 shadow-inner">
+          <div className={`relative w-full aspect-4/3 bg-[#26150b] rounded-lg flex items-center justify-center overflow-hidden border border-[#7d481b]/30 shadow-inner ${showCameras ? '' : 'hidden'}`}>
             <video
               ref={localVideoRef}
               autoPlay

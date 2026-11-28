@@ -1005,8 +1005,10 @@ export default function App() {
     if (gameOver || (gameMode === 'vs-bot' && chessRef.current.turn() !== playerProfile.side)) {
       return null;
     }
+    // In a duel only our own turn has moves; a move said on the rival's turn waits in the voice queue
+    if (gameMode === 'online' && chessRef.current.turn() !== multiplayerState.mySide) return null;
     return chessRef.current.moves({ verbose: true });
-  }, [gameOver, gameMode, playerProfile.side]);
+  }, [gameOver, gameMode, playerProfile.side, multiplayerState.mySide]);
 
   // Configure Voice Control Callbacks
   useEffect(() => {
@@ -1261,7 +1263,7 @@ export default function App() {
 
     // Handle online multiplayer or reset game to clean starting board
     if (config.gameMode === 'online' && config.roomId) {
-      handleStartOnlineMatch(config.roomId, chosenName || 'Player 1', config.side);
+      handleStartOnlineMatch(config.roomId, chosenName || 'Player 1', config.side, chosenMode);
     } else {
       handleResetGame();
     }
@@ -1318,7 +1320,7 @@ export default function App() {
     }
     if (sel.format !== gameMode) {
       handleSetGameMode(sel.format);
-      if (sel.format === 'online') handleStartOnlineMatch(sel.roomId, playerProfile.name || 'Player 1', playerProfile.side);
+      if (sel.format === 'online') handleStartOnlineMatch(sel.roomId, playerProfile.name || 'Player 1', playerProfile.side, mode);
     }
   };
   // The book is shut and the camera is back over the board; carry out a standing order if one was tapped
@@ -1777,6 +1779,7 @@ export default function App() {
           remoteStream={remoteStream}
           localStream={localStream}
           mySide={multiplayerState.mySide}
+          showCameras={controlMode === 'virtual'}
           currentTurn={currentTurn}
           isMyTurn={currentTurn === multiplayerState.mySide}
           isInCheck={isInCheck}

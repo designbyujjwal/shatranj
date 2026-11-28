@@ -183,6 +183,8 @@ class MultiplayerService {
   }
 
   public async ensureLocalMedia(): Promise<MediaStream | null> {
+    // A voice duel shares no camera or mic: the rival's voice from the speakers would reach our own speech commands
+    if (this.lastJoinParams?.controlMode === 'voice') return null;
     if (this.localStream) return this.localStream;
     if (this.mediaPromise) return this.mediaPromise;
     return this.initLocalMedia();
@@ -219,7 +221,7 @@ class MultiplayerService {
     loadRelayServers().then((servers) => { this.relayIce = servers; });
 
     // Start local camera media in parallel
-    this.initLocalMedia().catch((err) => {
+    this.ensureLocalMedia().catch((err) => {
       console.warn('[Multiplayer] Media stream notice:', err);
     });
 

@@ -67,7 +67,10 @@ class VoiceControlService {
 
   // Acting on interim speech: Chrome can take a second or more to mark a phrase final, so a move
   // that has resolved and stayed unchanged for INTERIM_SETTLE_MS is played without waiting.
-  private static readonly INTERIM_SETTLE_MS = 400;
+  private static readonly INTERIM_SETTLE_MS = 250;
+  // Any other unfinished phrase that stops changing this long is taken as said, so an unclear one gets its question quickly
+  private static readonly INTERIM_STALL_MS = 900;
+  private lastUnclearAskAt = 0;
   private handledResultIndex = -1;   // utterances before this index (in the current session) have been acted on
   private handledText = '';          // …and this much of the utterance at handledResultIndex
   private interimTimer: any = null;
@@ -434,13 +437,18 @@ class VoiceControlService {
     const legalMoves = this.boundGetLegalMoves?.();
     if (!legalMoves || legalMoves.length === 0) return;   // not our turn: the final result gets queued
     if (Date.now() < this.moveInFlightUntil) return;
-    if (this.choiceFragment) return;   // the answer to "which one?" waits for the final words
-    if (this.isSystemCommand(command.toLowerCase())) return;  // undo/restart/camera wait for the final result
 
-    const joined = this.withPieceFragment(command, alternatives, false);
-    const resolution = this.tryResolveMoveFromCandidates([joined.text, ...joined.alternatives], legalMoves);
-    if (!resolution.move) return;
-    const san = resolution.move.san;
+    // A legal move plays after a short settle; anything else (an answer, a command, an unclear phrase) after a longer stall
+    let san = '';
+    let wait = VoiceControlService.INTERIM_STALL_MS;
+    if (!this.choiceFragment && !this.isSystemCommand(command.toLowerCase())) {
+      const joined = this.withPieceFragment(command, alternatives, false);
+      const resolution = this.tryResolveMoveFromCandidates([joined.text, ...joined.alternatives], legalMoves);
+      if (resolution.move) {
+        san = resolution.move.san;
+        wait = VoiceControlService.INTERIM_SETTLE_MS;
+      }
+    }
     const handledBefore = this.handledText;
     this.interimCandidate = { index, san };
     this.interimTimer = setTimeout(() => {
@@ -452,7 +460,7 @@ class VoiceControlService {
       this.markHandled(index, fullText);
       this.interimCandidate = null;
       this.processSpokenText(command, this.boundGetLegalMoves || (() => null), alternatives);
-    }, VoiceControlService.INTERIM_SETTLE_MS);
+    }, wait);
   }
 
   /** A piece heard on its own, even in unfinished speech, is kept for the square that follows. */
@@ -838,7 +846,13 @@ class VoiceControlService {
       return;
     }
 
-    // Fallback: Show helpful guidance
+    // Fallback: a short unclear phrase on the player's turn is asked about aloud (at most every 5 s); longer talk stays silent
+    const short = rawText.trim().split(/\s+/).length <= 6;
+    if (short && Date.now() - this.lastUnclearAskAt > 5000) {
+      this.lastUnclearAskAt = Date.now();
+      this.triggerFeedback(`Sorry, I heard "${rawText}". What's your move?`, 'question', true);
+      return;
+    }
     this.triggerFeedback(`Heard: "${rawText}". Say e.g. "Bishop to C4" or "Queen to F4"`, 'info', false);
   }
 
